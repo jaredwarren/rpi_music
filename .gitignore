@@ -1,0 +1,7 @@
+.DS_Store
+my.db
+localhost.crt
+localhost.csr
+localhost.key
+song_files/*
+bin/

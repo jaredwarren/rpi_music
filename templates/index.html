@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Golang HTML Server</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Songs!</h1>
+        <table>
+            <thead>
+                <tr>
+                    <td>ID</td>
+                    <td>URL</td>
+                    <td>RFID</td>
+                    <td>Edit</td>
+                    <td>Delete</td>
+                </tr>
+            </thead>
+            <tbody>
+                {{range $index, $s := .Songs}}
+                <tr>
+                    <td>{{$s.ID}}</td>
+                    <td>{{$s.URL}}</td>
+                    <td>{{$s.RFID}}</td>
+                    <td><a href="/song/{{$s.ID}}">Edit</a></td>
+                    <td><a href="/song/{{$s.ID}}">Delete</a></td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</body>
+
+
+</html>
