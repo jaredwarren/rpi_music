@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sync"
 	"time"
@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	DBPath = "my.db"
-	DoSSL  = true
+	DBPath      = "my.db"
+	DoSSL       = true
+	rfidEnabled = false
 )
 
 func main() {
@@ -40,8 +41,10 @@ func main() {
 	defer db.Close()
 	serverCfg.db = db
 
-	rfid := StartRFIDReader(db)
-	defer rfid.Close()
+	if rfidEnabled {
+		rfid := StartRFIDReader(db)
+		defer rfid.Close()
+	}
 
 	htmlServer := StartHTTPServer(serverCfg)
 	defer htmlServer.StopHTTPServer()
@@ -141,6 +144,7 @@ func StartHTTPServer(cfg Config) *HTMLServer {
 	// remote media controls (WS?) (play, pause, volume +/-)
 
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	r.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir("./song_files"))))
 
 	// Create the HTML Server
 	htmlServer := HTMLServer{

@@ -13,6 +13,7 @@
 <body>
     <div class="container">
         <h1>Songs!</h1>
+        <a href="/song/new">New</a>
         <table>
             <thead>
                 <tr>
@@ -20,6 +21,7 @@
                     <td>URL</td>
                     <td>RFID</td>
                     <td>Edit</td>
+                    <td>&nbsp;</td>
                     <td>Delete</td>
                 </tr>
             </thead>
@@ -27,10 +29,11 @@
                 {{range $index, $s := .Songs}}
                 <tr>
                     <td>{{$s.ID}}</td>
-                    <td>{{$s.URL}}</td>
+                    <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td>
                     <td>{{$s.RFID}}</td>
                     <td><a href="/song/{{$s.ID}}">Edit</a></td>
-                    <td><a href="/song/{{$s.ID}}">Delete</a></td>
+                    <td>&nbsp;</td>
+                    <td><a href="/song/{{$s.ID}}/delete" onclick="return confirm('Are you sure?')">Delete</a></td>
                 </tr>
                 {{end}}
             </tbody>

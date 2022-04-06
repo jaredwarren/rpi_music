@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/fs"
 	"github.com/jaredwarren/rpi_music/model"
@@ -332,8 +333,10 @@ func downloadVideo(videoID string) (string, error) {
 	ext := getExt(bestFormat.MimeType)
 
 	fileName := fs.CleanFile(video.Title)
-
 	fileName = fmt.Sprintf("song_files/%s.%s", fileName, ext)
+	// spew.Dump(video)
+	spew.Dump(fileName)
+	return "", fmt.Errorf(":(")
 
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		// path/to/whatever does not exist
