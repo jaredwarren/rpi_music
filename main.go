@@ -21,7 +21,7 @@ import (
 const (
 	DBPath      = "my.db"
 	DoSSL       = true
-	rfidEnabled = false
+	rfidEnabled = true
 )
 
 func main() {
