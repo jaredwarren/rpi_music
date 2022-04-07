@@ -18,9 +18,12 @@
             <thead>
                 <tr>
                     <td>ID</td>
+                    <td>Title</td>
                     <td>URL</td>
                     <td>RFID</td>
                     <td>Edit</td>
+                    <td>&nbsp;</td>
+                    <td>Delete</td>
                     <td>&nbsp;</td>
                     <td>Delete</td>
                 </tr>
@@ -29,9 +32,12 @@
                 {{range $index, $s := .Songs}}
                 <tr>
                     <td>{{$s.ID}}</td>
+                    <td>{{$s.Title}}</td>
                     <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td>
                     <td>{{$s.RFID}}</td>
                     <td><a href="/song/{{$s.ID}}">Edit</a></td>
+                    <td>&nbsp;</td>
+                    <td><a href="/song/{{$s.ID}}/play">Play</a></td>
                     <td>&nbsp;</td>
                     <td><a href="/song/{{$s.ID}}/delete" onclick="return confirm('Are you sure?')">Delete</a></td>
                 </tr>

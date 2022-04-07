@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/model"
+	"github.com/jaredwarren/rpi_music/player"
 	"github.com/jaredwarren/rpi_music/rfid"
 	"github.com/jaredwarren/rpi_music/server"
 	bolt "go.etcd.io/bbolt"
@@ -81,8 +81,7 @@ func StartRFIDReader(db *bolt.DB) *rfid.RFIDReader {
 			})
 			if song != nil {
 				fmt.Printf("=== PLAY! === \n{%+v}\n", song)
-				cmd := exec.Command("ffplay", "-nodisp", song.FilePath)
-				err := cmd.Run()
+				err := player.Play(song.FilePath)
 				if err != nil {
 					fmt.Println("::::[E]", err)
 				}
@@ -138,6 +137,9 @@ func StartHTTPServer(cfg Config) *HTMLServer {
 	// delete song
 	r.HandleFunc("/song/{song_id}", s.DeleteSongHandler).Methods("DELETE")
 	r.HandleFunc("/song/{song_id}/delete", s.DeleteSongHandler).Methods("GET") // temp unitl I can get a better UI
+
+	r.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
+	r.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
 
 	// maybe?
 	// play locally or remotely

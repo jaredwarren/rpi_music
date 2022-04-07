@@ -17,8 +17,11 @@ var (
 )
 
 func CleanFile(s string) string {
+	// remove "/"
+	fileName := strings.ReplaceAll(s, "/", "-")
+
 	// Start with lowercase string
-	fileName := strings.ToLower(s)
+	fileName = strings.ToLower(fileName)
 	fileName = path.Clean(path.Base(fileName))
 
 	// Remove illegal characters for names, replacing some common separators with -

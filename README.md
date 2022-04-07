@@ -18,7 +18,6 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 TODO:
 
 
-name in list
 fix new redirect
 fix new overwrite
 fix start new song

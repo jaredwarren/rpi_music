@@ -2,8 +2,9 @@ package model
 
 type Song struct {
 	ID       string
+	Title    string
 	RFID     string
 	URL      string
-	File     []byte
+	FileData []byte // maybe store full file?
 	FilePath string
 }

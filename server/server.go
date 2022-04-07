@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/fs"
 	"github.com/jaredwarren/rpi_music/model"
+	"github.com/jaredwarren/rpi_music/player"
 	"github.com/kkdai/youtube/v2"
 	bolt "go.etcd.io/bbolt"
 )
@@ -183,12 +183,13 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Download song
-	file, err := downloadVideo(url)
+	file, video, err := downloadVideo(url)
 	if err != nil {
 		httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err))
 		return
 	}
 	song.FilePath = file
+	song.Title = video.Title
 
 	// 2. Store
 	err = s.db.Update(func(tx *bolt.Tx) error {
@@ -251,12 +252,13 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// try to download file again
-	file, err := downloadVideo(url)
+	file, video, err := downloadVideo(url)
 	if err != nil {
 		httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err))
 		return
 	}
 	song.FilePath = file
+	song.Title = video.Title
 
 	// delete old key if rfid id different then key
 	if key != rfid {
@@ -319,11 +321,11 @@ func push(w http.ResponseWriter, resource string) {
 	}
 }
 
-func downloadVideo(videoID string) (string, error) {
+func downloadVideo(videoID string) (string, *youtube.Video, error) {
 	client := youtube.Client{}
 	video, err := client.GetVideo(videoID)
 	if err != nil {
-		return "", err
+		return "", video, err
 	}
 
 	formats := video.Formats.WithAudioChannels() // only get videos with audio
@@ -334,30 +336,27 @@ func downloadVideo(videoID string) (string, error) {
 
 	fileName := fs.CleanFile(video.Title)
 	fileName = fmt.Sprintf("song_files/%s.%s", fileName, ext)
-	// spew.Dump(video)
-	spew.Dump(fileName)
-	return "", fmt.Errorf(":(")
 
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		// path/to/whatever does not exist
 
 		stream, _, err := client.GetStream(video, &bestFormat)
 		if err != nil {
-			return "", err
+			return "", video, err
 		}
 
 		file, err := os.Create(fileName)
 		if err != nil {
-			return "", err
+			return "", video, err
 		}
 		defer file.Close()
 
 		_, err = io.Copy(file, stream)
 		if err != nil {
-			return "", err
+			return "", video, err
 		}
 	}
-	return fileName, nil
+	return fileName, video, nil
 }
 
 func getExt(mimeType string) string {
@@ -370,4 +369,38 @@ func getExt(mimeType string) string {
 	}
 	fmt.Println("~~~~ unknown::", mimeType)
 	return "" //
+}
+
+func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(":: PlaySongHandler ::")
+	vars := mux.Vars(r)
+	key := vars["song_id"]
+
+	var song *model.Song
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucket))
+		v := b.Get([]byte(key))
+		err := json.Unmarshal(v, &song)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err))
+		return
+	}
+
+	err = player.Play(song.FilePath)
+	if err != nil {
+		httpError(w, fmt.Errorf("PlaySongHandler|player.Play|%w", err))
+		return
+	}
+	fmt.Fprintln(w, "Playing")
+}
+
+func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(":: StopSongHandler ::")
+	player.Stop()
+	fmt.Fprintln(w, "Stoped")
 }
