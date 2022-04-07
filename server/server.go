@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/jaredwarren/rpi_music/fs"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/kkdai/youtube/v2"
@@ -334,8 +334,9 @@ func downloadVideo(videoID string) (string, *youtube.Video, error) {
 	bestFormat := formats[0]
 	ext := getExt(bestFormat.MimeType)
 
-	fileName := fs.CleanFile(video.Title)
-	fileName = fmt.Sprintf("song_files/%s.%s", fileName, ext)
+	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
+
+	fileName := fmt.Sprintf("song_files/%s.%s", sEnc, ext)
 
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		// path/to/whatever does not exist

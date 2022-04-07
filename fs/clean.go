@@ -18,10 +18,7 @@ var (
 
 func CleanFile(s string) string {
 	// remove "/"
-	fileName := strings.ReplaceAll(s, "/", "-")
-
-	// make sure doesn't start with "-"
-	fileName = strings.TrimLeft(fileName, "-")
+	fileName := strings.ReplaceAll(s, "/", "")
 
 	// Start with lowercase string
 	fileName = strings.ToLower(fileName)
@@ -45,13 +42,13 @@ func cleanString(s string, r *regexp.Regexp) string {
 	s = Accents(s)
 
 	// Replace certain joining characters with a dash
-	s = separators.ReplaceAllString(s, "-")
+	s = separators.ReplaceAllString(s, "")
 
 	// Remove all other unrecognised characters - NB we do allow any printable characters
 	s = r.ReplaceAllString(s, "")
 
 	// Remove any multiple dashes caused by replacements above
-	s = dashes.ReplaceAllString(s, "-")
+	s = dashes.ReplaceAllString(s, "")
 
 	return s
 }
