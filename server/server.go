@@ -28,12 +28,14 @@ var (
 	homepageTpl     *template.Template
 	editSongFormTpl *template.Template
 	newSongFormTpl  *template.Template
+	playerTpl       *template.Template
 )
 
 func init() {
 	homepageTpl = template.Must(template.ParseFiles("templates/index.html"))
 	newSongFormTpl = template.Must(template.ParseFiles("templates/new_song.html"))
 	editSongFormTpl = template.Must(template.ParseFiles("templates/edit_song.html"))
+	playerTpl = template.Must(template.ParseFiles("templates/player.html"))
 }
 
 type Server struct {
@@ -410,11 +412,36 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		httpError(w, fmt.Errorf("PlaySongHandler|player.Play|%w", err))
 		return
 	}
-	fmt.Fprintln(w, "Playing")
+
+	fullData := map[string]interface{}{
+		"Song": song,
+	}
+	render(w, r, playerTpl, fullData)
 }
 
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(":: StopSongHandler ::")
 	player.Stop()
-	fmt.Fprintln(w, "Stoped")
+
+	vars := mux.Vars(r)
+	key := vars["song_id"]
+
+	var song *model.Song
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucket))
+		v := b.Get([]byte(key))
+		err := json.Unmarshal(v, &song)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err))
+		return
+	}
+	fullData := map[string]interface{}{
+		"Song": song,
+	}
+	render(w, r, playerTpl, fullData)
 }

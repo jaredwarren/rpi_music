@@ -18,6 +18,8 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 
 TODO:
 
+build controls in browser
+
 logs
 
 from phone check existing card
