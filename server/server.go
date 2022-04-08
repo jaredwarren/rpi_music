@@ -206,7 +206,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "NewSongHandler: %+v\n", song)
+	http.Redirect(w, r, "/songs", 301)
 }
 
 func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +254,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	// try to download file again
 	file, video, err := downloadVideo(url)
 	if err != nil {
-		httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err))
+		httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err))
 		return
 	}
 	song.FilePath = file
@@ -291,12 +291,25 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "UpdateSongHandler: %+v\n", song)
+	http.Redirect(w, r, "/songs", 301)
 }
 
 func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	fmt.Fprintf(w, "DeleteSongHandler: %+v\n", vars)
+	key := vars["song_id"]
+	if key == "" {
+		httpError(w, fmt.Errorf("no key"))
+		return
+	}
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucket))
+		return b.Delete([]byte(key))
+	})
+	if err != nil {
+		httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err))
+		return
+	}
+	http.Redirect(w, r, "/songs", 301)
 }
 
 // Render a template, or server error.

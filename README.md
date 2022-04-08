@@ -6,6 +6,7 @@
 
 
 ## gen cert
+In order for NFC to work on Android a ssl/https cert is needed. Self-signed works, if you ignore the alert.
 from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 `openssl req  -new  -newkey rsa:2048  -nodes  -keyout localhost.key  -out localhost.csr`
 `openssl  x509  -req  -days 365  -in localhost.csr  -signkey localhost.key  -out localhost.crt`
@@ -17,21 +18,16 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 
 TODO:
 
-
-fix new redirect
-fix new overwrite
-fix start new song
-see if I can control led on rfid
+logs
 
 from phone check existing card
 
 Write to card url/name????
 
-fix title, why is bruno 'soundtrack-version.mp4'?
-
-uninstall pulseaudio
 Autostart
 
 Documentation
 
+uninstall pulseaudio
+see if I can control led on rfid
 

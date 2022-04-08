@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"time"
 
@@ -19,17 +20,28 @@ import (
 )
 
 const (
-	DBPath      = "my.db"
-	DoSSL       = true
+	DBPath = "my.db"
+	DoSSL  = true
+)
+
+var (
 	rfidEnabled = true
 )
 
 func main() {
+	if runtime.GOOS == "darwin" {
+		rfidEnabled = false
+	}
+
 	serverCfg := Config{
 		Host:         ":8000",
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
+
+	defer func() {
+		player.Stop()
+	}()
 
 	// init DB
 	// Open the my.db data file in your current directory.
