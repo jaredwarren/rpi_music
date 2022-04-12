@@ -93,7 +93,7 @@ func StartRFIDReader(db *bolt.DB) *rfid.RFIDReader {
 			})
 			if song != nil {
 				fmt.Printf("=== PLAY! === \n{%+v}\n", song)
-				err := player.Play(song.FilePath)
+				err := player.Play(song)
 				if err != nil {
 					fmt.Println("::::[E]", err)
 				}

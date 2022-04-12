@@ -3,6 +3,8 @@ package player
 import (
 	"fmt"
 	"os/exec"
+
+	"github.com/jaredwarren/rpi_music/model"
 )
 
 var (
@@ -10,8 +12,9 @@ var (
 )
 
 type Player struct {
-	playing bool
-	cmd     *exec.Cmd
+	playing     bool
+	currentSong *model.Song
+	cmd         *exec.Cmd
 }
 
 func getPlayer() *Player {
@@ -21,11 +24,15 @@ func getPlayer() *Player {
 	return p
 }
 
-func Play(file string) error {
+func Play(song *model.Song) error {
 	Stop()
 
+	if song.FilePath == "" {
+		return fmt.Errorf("invalid file:%+v", song)
+	}
+
 	cp := getPlayer()
-	cmd := exec.Command("ffplay", "-nodisp", file)
+	cmd := exec.Command("ffplay", "-nodisp", song.FilePath)
 	cp.cmd = cmd
 	err := cmd.Start()
 	if err != nil {
@@ -38,6 +45,7 @@ func Play(file string) error {
 		}
 	}()
 	cp.playing = true
+	cp.currentSong = song
 
 	return nil
 }
@@ -52,4 +60,10 @@ func Stop() {
 		}
 	}
 	cp.playing = false
+	cp.currentSong = nil
+}
+
+func GetPlaying() *model.Song {
+	cp := getPlayer()
+	return cp.currentSong
 }
