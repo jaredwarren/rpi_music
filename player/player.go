@@ -71,14 +71,32 @@ func GetPlaying() *model.Song {
 }
 
 func Beep() {
-	{
-		cmd := exec.Command("tput", "bel")
-		err := cmd.Run()
-		if err != nil {
-			fmt.Println("EEE:", err)
-		}
-	}
-	time.Sleep(1 * time.Second)
+	// {
+	// 	cmd := exec.Command("tput", "bel")
+	// 	err := cmd.Run()
+	// 	if err != nil {
+	// 		fmt.Println("EEE:", err)
+	// 	}
+	// }
+	// time.Sleep(1 * time.Second)
+
+	// {
+	// 	cmd := exec.Command("tput", "bel")
+	// 	err := cmd.Run()
+	// 	if err != nil {
+	// 		fmt.Println("EEE:", err)
+	// 	}
+	// }
+	// time.Sleep(1 * time.Second)
+
+	// {
+	// 	cmd := exec.Command("tput", "bel")
+	// 	err := cmd.Run()
+	// 	if err != nil {
+	// 		fmt.Println("EEE:", err)
+	// 	}
+	// }
+	// time.Sleep(1 * time.Second)
 
 	{
 		cmd := exec.Command("tput", "bel")
@@ -88,25 +106,8 @@ func Beep() {
 		}
 	}
 	time.Sleep(1 * time.Second)
+	runCmd("speaker-test -t sine -f 1000 -l 1")
 
-	{
-		cmd := exec.Command("tput", "bel")
-		err := cmd.Run()
-		if err != nil {
-			fmt.Println("EEE:", err)
-		}
-	}
-	time.Sleep(1 * time.Second)
-
-	{
-		cmd := exec.Command("tput", "bel")
-		err := cmd.Run()
-		if err != nil {
-			fmt.Println("EEE:", err)
-		}
-	}
-	time.Sleep(1 * time.Second)
-	runCmd("speaker-test -t sine -f 1000 -l 1 & sleep .2 && kill -9 $!")
 }
 
 func runCmd(cmds string) {
@@ -115,11 +116,15 @@ func runCmd(cmds string) {
 		// TODO: handle error
 	}
 	cmd := exec.Command(command[0], command[1:]...)
-	stdoutStderr, err := cmd.CombinedOutput()
-	if err != nil {
-		// TODO: handle error more gracefully
-		fmt.Println("EEE:", err)
-	}
+	cmd.Start()
+	time.Sleep(200 * time.Millisecond)
+	cmd.Process.Kill()
+
+	// stdoutStderr, err := cmd.CombinedOutput()
+	// if err != nil {
+	// 	// TODO: handle error more gracefully
+	// 	fmt.Println("EEE:", err)
+	// }
 	// do something with output
-	fmt.Printf(":::::`%s`\n%s\n", cmds, stdoutStderr)
+	// fmt.Printf(":::::`%s`\n%s\n", cmds, stdoutStderr)
 }
