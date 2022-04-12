@@ -406,7 +406,7 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err))
 		return
 	}
-
+	player.Beep()
 	err = player.Play(song)
 	if err != nil {
 		httpError(w, fmt.Errorf("PlaySongHandler|player.Play|%w", err))

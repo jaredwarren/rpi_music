@@ -71,60 +71,24 @@ func GetPlaying() *model.Song {
 }
 
 func Beep() {
-	// {
-	// 	cmd := exec.Command("tput", "bel")
-	// 	err := cmd.Run()
-	// 	if err != nil {
-	// 		fmt.Println("EEE:", err)
-	// 	}
-	// }
-	// time.Sleep(1 * time.Second)
-
-	// {
-	// 	cmd := exec.Command("tput", "bel")
-	// 	err := cmd.Run()
-	// 	if err != nil {
-	// 		fmt.Println("EEE:", err)
-	// 	}
-	// }
-	// time.Sleep(1 * time.Second)
-
-	// {
-	// 	cmd := exec.Command("tput", "bel")
-	// 	err := cmd.Run()
-	// 	if err != nil {
-	// 		fmt.Println("EEE:", err)
-	// 	}
-	// }
-	// time.Sleep(1 * time.Second)
-
-	{
-		cmd := exec.Command("tput", "bel")
-		err := cmd.Run()
-		if err != nil {
-			fmt.Println("EEE:", err)
-		}
-	}
-	time.Sleep(1 * time.Second)
-	runCmd("speaker-test -t sine -f 1000 -l 1")
+	cmds := "speaker-test -t sine -f 1000 -l 1"
+	command := strings.Split(cmds, " ")
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Start()
+	time.Sleep(200 * time.Millisecond)
+	cmd.Process.Kill()
 
 }
 
-func runCmd(cmds string) {
+func runCmd(cmds string) ([]byte, error) {
 	command := strings.Split(cmds, " ")
 	if len(command) < 2 {
-		// TODO: handle error
+		return nil, fmt.Errorf("command too short:%s", cmds)
 	}
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Start()
 	time.Sleep(200 * time.Millisecond)
 	cmd.Process.Kill()
 
-	// stdoutStderr, err := cmd.CombinedOutput()
-	// if err != nil {
-	// 	// TODO: handle error more gracefully
-	// 	fmt.Println("EEE:", err)
-	// }
-	// do something with output
-	// fmt.Printf(":::::`%s`\n%s\n", cmds, stdoutStderr)
+	return cmd.CombinedOutput()
 }
