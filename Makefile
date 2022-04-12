@@ -1,9 +1,9 @@
 
 build:
-	go build -o bin/main .
+	go build -o pplayer .
 
 run:
-	./bin/main
+	pplayer
 
 fmt:
 	gofmt -w .
