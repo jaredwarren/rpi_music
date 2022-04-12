@@ -3,7 +3,7 @@ build:
 	go build -o pplayer .
 
 run:
-	pplayer
+	./pplayer
 
 fmt:
 	gofmt -w .

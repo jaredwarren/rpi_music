@@ -35,8 +35,8 @@ func main() {
 
 	serverCfg := Config{
 		Host:         ":8000",
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
+		ReadTimeout:  35 * time.Second,
+		WriteTimeout: 35 * time.Second,
 	}
 
 	defer func() {
@@ -60,6 +60,9 @@ func main() {
 
 	htmlServer := StartHTTPServer(serverCfg)
 	defer htmlServer.StopHTTPServer()
+
+	player.Beep()
+	fmt.Println("ready..")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
