@@ -1,0 +1,4 @@
+beep: true
+https: true
+rfid-enabled: true
+host: :8000
