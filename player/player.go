@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jaredwarren/rpi_music/model"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -27,6 +28,7 @@ func getPlayer() *Player {
 }
 
 func Play(song *model.Song) error {
+	// TODO: add config check
 	Stop()
 
 	if song.FilePath == "" {
@@ -71,13 +73,23 @@ func GetPlaying() *model.Song {
 }
 
 func Beep() {
+	if !viper.GetBool("beep") {
+		return
+	}
 	cmds := "speaker-test -t sine -f 1000 -l 1"
 	command := strings.Split(cmds, " ")
 	cmd := exec.Command(command[0], command[1:]...)
-	cmd.Start()
+	err := cmd.Start()
+	if err != nil {
+		fmt.Println("Beep Error:", err)
+	}
 	time.Sleep(200 * time.Millisecond)
-	cmd.Process.Kill()
-
+	if cmd != nil && cmd.Process != nil {
+		err := cmd.Process.Kill()
+		if err != nil {
+			fmt.Println("Beep kill Error:", err)
+		}
+	}
 }
 
 func runCmd(cmds string) ([]byte, error) {

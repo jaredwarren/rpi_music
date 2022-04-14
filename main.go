@@ -12,29 +12,31 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/config"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/jaredwarren/rpi_music/rfid"
 	"github.com/jaredwarren/rpi_music/server"
+	"github.com/spf13/viper"
 	bolt "go.etcd.io/bbolt"
 )
 
 const (
 	DBPath = "my.db"
-	DoSSL  = true
-)
-
-var (
-	rfidEnabled = true
 )
 
 func main() {
+	config.InitConfig()
+
+	// things that don't work on mac
 	if runtime.GOOS == "darwin" {
-		rfidEnabled = false
+		viper.Set("https", false)
+		viper.Set("rfid-enabled", false)
+		viper.Set("beep", false)
 	}
 
 	serverCfg := Config{
-		Host:         ":8000",
+		Host:         viper.GetString("host"),
 		ReadTimeout:  35 * time.Second,
 		WriteTimeout: 35 * time.Second,
 	}
@@ -53,7 +55,7 @@ func main() {
 	defer db.Close()
 	serverCfg.db = db
 
-	if rfidEnabled {
+	if viper.GetBool("rfid-enabled") {
 		rfid := StartRFIDReader(db)
 		defer rfid.Close()
 	}
@@ -61,8 +63,7 @@ func main() {
 	htmlServer := StartHTTPServer(serverCfg)
 	defer htmlServer.StopHTTPServer()
 
-	player.Beep()
-	fmt.Println("ready..")
+	go player.Beep()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
@@ -157,12 +158,16 @@ func StartHTTPServer(cfg Config) *HTMLServer {
 	r.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
 	r.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
 
+	r.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
+	r.HandleFunc("/config", s.ConfigHandler).Methods("POST")
+
 	// maybe?
 	// play locally or remotely
 	// remote media controls (WS?) (play, pause, volume +/-)
 
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	r.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir("./song_files"))))
+	r.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir("./thumb_files"))))
 
 	// Create the HTML Server
 	htmlServer := HTMLServer{
@@ -175,13 +180,11 @@ func StartHTTPServer(cfg Config) *HTMLServer {
 		},
 	}
 
-	// Add to the WaitGroup for the listener goroutine
-	htmlServer.wg.Add(1)
-
 	// Start the listener
+	htmlServer.wg.Add(1)
 	go func() {
 		fmt.Printf("\nHTMLServer : Service started : Host= http://%v\n", cfg.Host)
-		if DoSSL {
+		if viper.GetBool("https") {
 			htmlServer.server.ListenAndServeTLS("localhost.crt", "localhost.key")
 		} else {
 			htmlServer.server.ListenAndServe()

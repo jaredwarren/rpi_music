@@ -1,51 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
+{{template "base" .}}
 
-<head>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Golang HTML Server</title>
+{{define "title"}}<h1>🎵Songs!🎵 🤩</h1>{{end}}
 
-    <link rel="stylesheet" href="/static/style.css">
-</head>
+{{define "nav"}}
+<ul class="tab tab-block">
+    <li class="tab-item active">
+        <a href="#">Songs</a>
+    </li>
+    <li class="tab-item">
+        <a href="/player">Player</a>
+    </li>
+    <li class="tab-item">
+        <a href="/config">Config</a>
+    </li>
+</ul>
+{{end}}
 
-<body>
-    <div class="container">
-        <h1>🎵Songs!🎵 🤩</h1>
-        <a href="/song/new">New</a>
-        <table>
-            <thead>
-                <tr>
-                    <td>ID</td>
-                    <td>Title</td>
-                    <td>URL</td>
-                    <td>RFID</td>
-                    <td>Edit</td>
-                    <td>&nbsp;</td>
-                    <td>Delete</td>
-                    <td>&nbsp;</td>
-                    <td>Delete</td>
-                </tr>
-            </thead>
-            <tbody>
-                {{range $index, $s := .Songs}}
-                <tr>
-                    <td>{{$s.ID}}</td>
-                    <td>{{$s.Title}}</td>
-                    <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td>
-                    <td>{{$s.RFID}}</td>
-                    <td><a href="/song/{{$s.ID}}">Edit</a></td>
-                    <td>&nbsp;</td>
-                    <td><a href="/song/{{$s.ID}}/play">Play</a></td>
-                    <td>&nbsp;</td>
-                    <td><a href="/song/{{$s.ID}}/delete" onclick="return confirm('Are you sure?')">Delete</a></td>
-                </tr>
-                {{end}}
-            </tbody>
-        </table>
-    </div>
-</body>
-
-
-</html>
+{{define "main"}}
+<div class="container">
+    <a class="btn btn-primary" href="/song/new"><i class="icon icon-plus"></i> New</a>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <!-- <td>ID</td> -->
+                <td>RFID</td>
+                <td>Title</td>
+                <td>URL</td>
+                <td>Edit</td>
+                <td>&nbsp;</td>
+                <td>Delete</td>
+                <td>&nbsp;</td>
+                <td>Delete</td>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $index, $s := .Songs}}
+            <tr>
+                <!-- <td>{{$s.ID}}</td> -->
+                <td>{{$s.RFID}}</td>
+                <td>{{$s.Title}}</td>
+                <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td>
+                <td><a  class="btn btn-secondary" href="/song/{{$s.ID}}"><i class="icon icon-edit"></i></a></td>
+                <td>&nbsp;</td>
+                <td><a class="btn btn-primary" href="/song/{{$s.ID}}/play"><i class="icon icon-arrow-right"></i></a></td>
+                <td>&nbsp;</td>
+                <td><a class="icon icon-delete" href="/song/{{$s.ID}}/delete" onclick="return confirm('Are you sure?')">&nbsp;</a></td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{end}}

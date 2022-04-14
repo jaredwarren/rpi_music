@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -117,6 +118,14 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]interface{}{
 		"Songs": songs,
 	}
+
+	// for now
+	files := []string{
+		"templates/index.html",
+		"templates/layout.html",
+	}
+	homepageTpl = template.Must(template.ParseFiles(files...))
+
 	render(w, r, homepageTpl, fullData)
 }
 
@@ -190,6 +199,13 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err))
 		return
 	}
+	tmb, err := downloadThumb(video)
+	if err != nil {
+		fmt.Println("NewSongHandler|downloadThumb|", err)
+		// ignore err
+	}
+
+	song.Thumbnail = tmb
 	song.FilePath = file
 	song.Title = video.Title
 
@@ -259,6 +275,13 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 		httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err))
 		return
 	}
+	tmb, err := downloadThumb(video)
+	if err != nil {
+		fmt.Println("NewSongHandler|downloadThumb|", err)
+		// ignore err
+	}
+
+	song.Thumbnail = tmb
 	song.FilePath = file
 	song.Title = video.Title
 
@@ -353,24 +376,28 @@ func downloadVideo(videoID string) (string, *youtube.Video, error) {
 
 	fileName := fmt.Sprintf("song_files/%s.%s", sEnc, ext)
 
-	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
-		// path/to/whatever does not exist
+	fmt.Println("downloading...", video.Title, "->", fileName)
 
+	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		stream, _, err := client.GetStream(video, &bestFormat)
 		if err != nil {
-			return "", video, err
+			return fileName, video, err
 		}
 
 		file, err := os.Create(fileName)
 		if err != nil {
-			return "", video, err
+			return fileName, video, err
 		}
 		defer file.Close()
 
 		_, err = io.Copy(file, stream)
 		if err != nil {
-			return "", video, err
+			return fileName, video, err
 		}
+	} else if err != nil {
+		return fileName, video, err
+	} else {
+		fmt.Println("file already exists:", fileName)
 	}
 	return fileName, video, nil
 }
@@ -385,6 +412,64 @@ func getExt(mimeType string) string {
 	}
 	fmt.Println("~~~~ unknown::", mimeType)
 	return "" //
+}
+
+// todo add this everywhere downloadVideo is used
+func downloadThumb(video *youtube.Video) (string, error) {
+	if len(video.Thumbnails) == 0 {
+		return "", fmt.Errorf("no thumbs for video")
+	}
+
+	// find biggest
+	thumb := video.Thumbnails[0]
+	for _, t := range video.Thumbnails {
+		if t.Width > thumb.Width {
+			thumb = t
+		}
+	}
+
+	fileURL := thumb.URL
+
+	// clean up `.../hqdefault.jpg?sqp=-oaymwEj...`
+	ext := filepath.Ext(fileURL)
+	ext = strings.Split(ext, "?")[0]
+
+	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
+	fileName := fmt.Sprintf("thumb_files/%s.%s", sEnc, ext)
+
+	err := downloadFile(fileURL, fileName)
+	if err != nil {
+		return "", err
+	}
+
+	return fileName, nil
+}
+
+func downloadFile(URL, fileName string) error {
+	//Get the response bytes from the url
+	response, err := http.Get(URL)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != 200 {
+		return errors.New("Received non 200 response code")
+	}
+	//Create a empty file
+	file, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	//Write the bytes to the fiel
+	_, err = io.Copy(file, response.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {

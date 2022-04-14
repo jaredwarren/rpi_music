@@ -28,12 +28,26 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 # TODO #
 volume!
  - `amixer -D pulse sset Master 5%+`?
-light to show status
+light or sound to show status
+ - `speaker-test -t sine -f 1000 -l 1`
+
 keep alive
+
+css
 
 add link to "songs" to show player without playing
 Documentation and cleanup
 Playlist
+
+download image with video
+
+add config page
+config 
+ - override current playing
+  - else queue?
+ - repeat?
+ - ...
+
 
 
 
