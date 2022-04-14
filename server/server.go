@@ -435,7 +435,7 @@ func downloadThumb(video *youtube.Video) (string, error) {
 	ext = strings.Split(ext, "?")[0]
 
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
-	fileName := fmt.Sprintf("thumb_files/%s.%s", sEnc, ext)
+	fileName := fmt.Sprintf("thumb_files/%s%s", sEnc, ext)
 
 	err := downloadFile(fileURL, fileName)
 	if err != nil {
