@@ -2,6 +2,7 @@ package player
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -14,6 +15,24 @@ import (
 var (
 	p *Player
 )
+
+func InitPlayer() {
+	if _, err := os.Stat("./song_files"); os.IsNotExist(err) {
+		err := os.Mkdir("./song_files", os.ModeDir)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+
+	if _, err := os.Stat("./thumb_files"); os.IsNotExist(err) {
+		err := os.Mkdir("./thumb_files", os.ModeDir)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+
+	// TODO: check if ffplay is setup
+}
 
 type Player struct {
 	Playing     bool
@@ -52,11 +71,12 @@ func Play(song *model.Song) error {
 		"-nodisp",
 		"-autoexit", // exit after song finishes, otherwise command won't stop
 	}
-	if viper.GetBool("loop") {
-		args = append(args, "-loop", "0")
+	if viper.GetBool("player.loop") {
+		// args = append(args, "-loop", "0")
 		// TODO: fix this so if config changes loop stops
+		// alos need override for things like startup sound
 	}
-	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("volume")))
+	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
 	args = append(args, song.FilePath)
 
 	cp.mu.Lock()

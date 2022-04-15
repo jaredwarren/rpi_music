@@ -6,12 +6,8 @@
 
 ### rpi setup
 #### default rpi stuff
-#### md
-song_files?
-thumb_files
-config/config.yml
 #### dependances
-<!-- `sudo apt install alsa-utils` maybe -->
+<!-- `sudo apt install alsa-utils` maybe to control volume -->
 `ffmpeg` required
 
 
@@ -35,28 +31,29 @@ volume!
 light or sound to show status
  - `speaker-test -t sine -f 1000 -l 1`
 
-keep alive
+keep alive when submitting new song
 
 css
+
+clean/delete logs, view logs in ui
+
+push build to pi, restart
 
 add link to "songs" to show player without playing
 Documentation and cleanup
 Playlist
 
-download image with video
+show image with video
 
 add config page
-config 
- - override current playing
-  - else queue?
- - repeat?
- - ...
 
+player queue
 
+add systemd setup
 
 
 ## Case
-add stl's
+add stl's to repo
 
 
 ## Nice to have
@@ -69,6 +66,8 @@ push notification to android
 uninstall pulseaudio
 see if I can control led on rfid, or add another led to rpi
 
+re-do ui to be more like yt-music app
+
 
 
 # Helpful links
@@ -78,5 +77,7 @@ https://www.raspberrypi-spy.co.uk/2019/06/using-a-usb-audio-device-with-the-rasp
 
 ## systemd
 https://www.dexterindustries.com/howto/run-a-program-on-your-raspberry-pi-at-startup/#systemd
+
+
 ### systemd logs
-`journalctl -u service-name`
+`journalctl -u player.service`

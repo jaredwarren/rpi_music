@@ -61,17 +61,17 @@ func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	beep := r.PostForm.Get("beep")
 	viper.Set("beep", beep == "on")
 
-	loop := r.PostForm.Get("loop")
-	viper.Set("loop", loop == "on")
+	loop := r.PostForm.Get("player.loop")
+	viper.Set("player.loop", loop == "on")
 
 	allow_override := r.PostForm.Get("allow_override")
 	viper.Set("allow_override", allow_override == "on")
 
-	volume := r.PostForm.Get("volume")
-	viper.Set("volume", volume)
+	volume := r.PostForm.Get("player.volume")
+	viper.Set("player.volume", volume)
 
-	startup_sound := r.PostForm.Get("startup_sound")
-	viper.Set("startup_sound", startup_sound)
+	startupSound := r.PostForm.Get("startup.sound")
+	viper.Set("startup.sound", startupSound)
 
 	// Write
 	err = viper.WriteConfig()

@@ -369,6 +369,7 @@ func downloadVideo(videoID string) (string, *youtube.Video, error) {
 	client := youtube.Client{}
 	video, err := client.GetVideo(videoID)
 	if err != nil {
+		fmt.Println("downloadVideo|client.GetVideo|", err)
 		return "", video, err
 	}
 
@@ -387,20 +388,24 @@ func downloadVideo(videoID string) (string, *youtube.Video, error) {
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		stream, _, err := client.GetStream(video, &bestFormat)
 		if err != nil {
+			fmt.Println("downloadVideo|client.GetStream|", err)
 			return fileName, video, err
 		}
 
 		file, err := os.Create(fileName)
 		if err != nil {
+			fmt.Println("downloadVideo|os.Create|", err)
 			return fileName, video, err
 		}
 		defer file.Close()
 
 		_, err = io.Copy(file, stream)
 		if err != nil {
+			fmt.Println("downloadVideo|io.Copy|", err)
 			return fileName, video, err
 		}
 	} else if err != nil {
+		fmt.Println("downloadVideo|os.Stat|", err)
 		return fileName, video, err
 	} else {
 		fmt.Println("file already exists:", fileName)

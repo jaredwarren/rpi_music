@@ -28,6 +28,8 @@ const (
 func main() {
 	config.InitConfig()
 
+	player.InitPlayer()
+
 	// things that don't work on mac
 	if runtime.GOOS == "darwin" {
 		viper.Set("https", false)
@@ -63,9 +65,9 @@ func main() {
 	htmlServer := StartHTTPServer(serverCfg)
 	defer htmlServer.StopHTTPServer()
 
-	if viper.GetBool("startup_sound") {
+	if viper.GetBool("startup.play") {
 		go player.Play(&model.Song{
-			FilePath: viper.GetString("startup_file"),
+			FilePath: viper.GetString("startup.file"),
 		})
 	} else {
 		go player.Beep()
