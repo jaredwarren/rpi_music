@@ -506,7 +506,7 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(":: StopSongHandler ::")
-	player.Stop()
+	player.Stop("manual")
 
 	vars := mux.Vars(r)
 	key := vars["song_id"]

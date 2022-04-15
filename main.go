@@ -42,7 +42,7 @@ func main() {
 	}
 
 	defer func() {
-		player.Stop()
+		player.Stop("close")
 	}()
 
 	// init DB
