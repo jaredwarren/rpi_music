@@ -63,7 +63,13 @@ func main() {
 	htmlServer := StartHTTPServer(serverCfg)
 	defer htmlServer.StopHTTPServer()
 
-	go player.Beep()
+	if viper.GetBool("startup_sound") {
+		go player.Play(&model.Song{
+			FilePath: viper.GetString("startup_file"),
+		})
+	} else {
+		go player.Beep()
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)

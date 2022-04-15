@@ -31,12 +31,30 @@ func Play(song *model.Song) error {
 	// TODO: add config check
 	Stop()
 
+	// TODO: con't overrite if already playing
+
 	if song.FilePath == "" {
 		return fmt.Errorf("invalid file:%+v", song)
 	}
 
+	// TODO: ffplay config
+	// -loop number ;0 inf
+	// -volume 0-100
+
+	args := []string{
+		"-nodisp",
+	}
+
+	if viper.GetBool("loop") {
+		args = append(args, "-loop", "0")
+	}
+
+	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("volume")))
+
+	args = append(args, song.FilePath)
+
 	cp := getPlayer()
-	cmd := exec.Command("ffplay", "-nodisp", song.FilePath)
+	cmd := exec.Command("ffplay", args...)
 	cp.cmd = cmd
 	err := cmd.Start()
 	if err != nil {

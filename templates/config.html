@@ -17,9 +17,27 @@
 {{end}}
 
 {{define "main"}}
-<form>
-    <div>
-        {{ConfigString "host"}}
+<form action="/config" method="post">
+    <div class="form-group">
+        <label class="form-switch">
+            {{ConfigBool "beep"}}
+        </label>
     </div>
+    <div class="form-group">
+        <label class="form-switch">
+            {{ConfigBool "startup_sound"}}
+        </label>
+    </div>
+    <div class="form-group">
+        <label class="form-switch">
+            {{ConfigBool "loop"}}
+        </label>
+    </div>
+    <div class="form-group">
+        <label class="form-number">
+            {{ConfigInt "volume"}}
+        </label>
+    </div>
+    <button class="btn btn-primary" type="submit">Update</button>
 </form>
 {{end}}

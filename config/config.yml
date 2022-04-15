@@ -1,4 +1,11 @@
-beep: true
 https: true
 rfid-enabled: true
 host: :8000
+
+
+
+startup_sound: true
+startup_file: song_files/windows-xp-startup.mp3
+beep: true
+loop: false
+volume: 100

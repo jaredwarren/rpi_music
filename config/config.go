@@ -17,24 +17,3 @@ func InitConfig() {
 		panic(fmt.Errorf("Fatal error config file: %w \n", err))
 	}
 }
-
-var (
-	c *config
-)
-
-// TODO: initialize from file
-
-type config struct {
-	Beep bool
-}
-
-func GetConfig() *config {
-	return getConfig()
-}
-
-func getConfig() *config {
-	if c == nil {
-		c = &config{}
-	}
-	return c
-}
