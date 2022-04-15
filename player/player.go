@@ -16,13 +16,13 @@ var (
 )
 
 type Player struct {
-	playing     bool
+	Playing     bool
 	currentSong *model.Song
 	cmd         *exec.Cmd
 	mu          sync.Mutex
 }
 
-func getPlayer() *Player {
+func GetPlayer() *Player {
 	if p == nil {
 		p = &Player{}
 	}
@@ -30,84 +30,69 @@ func getPlayer() *Player {
 }
 
 func Play(song *model.Song) error {
-	fmt.Printf(">>>>%+v\n", song)
 	if song.FilePath == "" {
-		fmt.Println("  no file path")
 		return fmt.Errorf("invalid file:%+v", song)
 	}
 
-	cp := getPlayer()
-	if cp.playing {
-		fmt.Println("  something is playing")
+	cp := GetPlayer()
+	if cp.Playing {
 		restart := viper.GetBool("restart")
 		if cp.currentSong.FilePath == song.FilePath && !restart {
-			fmt.Println("    no restart")
 			fmt.Println("song already playing:", song)
 			return nil
 		}
 		if !viper.GetBool("allow_override") {
-			fmt.Println("    no override")
 			fmt.Println("song already playing something else:", song)
 			return nil
 		}
-		Stop("pp")
+		Stop()
 	}
 
 	args := []string{
 		"-nodisp",
-		"-autoexit",
+		"-autoexit", // exit after song finishes, otherwise command won't stop
 	}
 	if viper.GetBool("loop") {
 		args = append(args, "-loop", "0")
+		// TODO: fix this so if config changes loop stops
 	}
 	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("volume")))
 	args = append(args, song.FilePath)
 
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	fmt.Printf("  args:%+v	\n", args)
 
+	fmt.Printf("Playing: ffplay %+v\n", args)
 	cmd := exec.Command("ffplay", args...)
 	cp.cmd = cmd
 	err := cmd.Start()
 	if err != nil {
-		fmt.Println("  start err:", err)
 		return fmt.Errorf("[ERROR] start error: %w", err)
 	}
 	go func() {
 		cp.mu.Lock()
 		defer cp.mu.Unlock()
-		fmt.Println("  waiting...")
-		err := cmd.Wait()
-		if err != nil {
-			fmt.Println("  wait err:", err)
-			fmt.Println("[ERROR] play wait error: %w", err)
-		}
-		cp.playing = false
-		fmt.Println("  done...")
+		cmd.Wait()
+		cp.Playing = false
 	}()
 
-	fmt.Println("  playing...")
-	cp.playing = true
+	cp.Playing = true
 	cp.currentSong = song
 
 	return nil
 }
 
-func Stop(f string) {
-	fmt.Println("xxx stopping...", f)
-	cp := getPlayer()
-
+func Stop() {
+	cp := GetPlayer()
 	if cp.cmd != nil {
 		if cp.cmd.Process != nil {
 			cp.cmd.Process.Kill()
 		}
 	}
-	fmt.Println("xxx stopped!")
 }
 
 func GetPlaying() *model.Song {
-	cp := getPlayer()
+	cp := GetPlayer()
 	return cp.currentSong
 }
 

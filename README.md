@@ -6,8 +6,12 @@
 
 ### rpi setup
 #### default rpi stuff
+#### md
+song_files?
+thumb_files
+config/config.yml
 #### dependances
-`sudo apt install alsa-utils` maybe
+<!-- `sudo apt install alsa-utils` maybe -->
 `ffmpeg` required
 
 

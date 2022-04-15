@@ -42,7 +42,7 @@ func main() {
 	}
 
 	defer func() {
-		player.Stop("close")
+		player.Stop()
 	}()
 
 	// init DB
@@ -167,8 +167,8 @@ func StartHTTPServer(cfg Config) *HTMLServer {
 	r.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
 	r.HandleFunc("/config", s.ConfigHandler).Methods("POST")
 
-	// maybe?
-	// play locally or remotely
+	r.HandleFunc("/player", s.PlayerHandler).Methods("GET")
+	// TODO:play locally or remotely
 	// remote media controls (WS?) (play, pause, volume +/-)
 
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))

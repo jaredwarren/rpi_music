@@ -1,27 +1,44 @@
-<!DOCTYPE html>
-<html lang="en">
+{{template "base" .}}
 
-<head>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Player</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
+{{define "title"}}{{.Song.Title}}{{end}}
 
-<body>
-    <h1>Player</h1>
-    <a href="/songs">Songs</a>
-    <hr>
-    <div class="container">
-        <form action="/song/{{.Song.ID}}/play">
-            <input type="submit" value="▶️ Play" />
-        </form>
-        <hr>
-        <form action="/song/{{.Song.ID}}/stop">
-            <input type="submit" value="⏸️ Stop" />
-        </form>
-    </div>
-</body>
+{{define "nav"}}
+<ul class="tab tab-block">
+    <li class="tab-item">
+        <a href="/songs">Songs</a>
+    </li>
+    <li class="tab-item active">
+        <a href="#">Player</a>
+    </li>
+    <li class="tab-item">
+        <a href="/config">Config</a>
+    </li>
+</ul>
+{{end}}
 
-</html>
+{{define "main"}}
+<script>
+    function play(){
+        fetch('/song/{{.Song.ID}}/play')
+        play_btn.classList.add("disabled")
+        stop_btn.classList.remove("disabled")
+    }
+    function stop() {
+        fetch('/song/{{.Song.ID}}/stop')
+        play_btn.classList.remove("disabled")
+        stop_btn.classList.add("disabled")
+    }
+</script>
+
+<h1>{{.Song.Title}}</h1>
+<button id="play_btn" class="btn btn-primary {{if .Player.Playing}}disabled{{end}}" onclick="play()">▶️ Play</button>
+<button id="stop_btn" class="btn btn-primary {{if not .Player.Playing}}disabled{{end}}" onclick="stop()">⏸️ Stop</button>
+
+<!--
+    TODO: 
+        onchange call volume change (needs created)
+        set init to config (needs passed in)
+
+    <input class="slider" type="range" min="0" max="100" value="50"> -->
+
+{{end}}

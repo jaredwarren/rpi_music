@@ -27,9 +27,7 @@ func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 		"templates/config.html",
 		"templates/layout.html",
 	}
-	// TODO:
-	// add ffpay options
-	// add ConfigBool
+	// TODO:  maybe these would be better as objects
 	tpl := template.Must(template.New("base").Funcs(template.FuncMap{
 		"ConfigString": func(feature string) template.HTML {
 			v := viper.GetString(feature)
@@ -65,6 +63,9 @@ func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 	loop := r.PostForm.Get("loop")
 	viper.Set("loop", loop == "on")
+
+	allow_override := r.PostForm.Get("allow_override")
+	viper.Set("allow_override", allow_override == "on")
 
 	volume := r.PostForm.Get("volume")
 	viper.Set("volume", volume)

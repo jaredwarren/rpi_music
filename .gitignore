@@ -6,3 +6,4 @@ localhost.key
 song_files/*
 bin/
 thumb_files/*
+config/config.yml

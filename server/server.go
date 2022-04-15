@@ -142,7 +142,13 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]interface{}{
 		"Song": song,
 	}
-	render(w, r, newSongFormTpl, fullData)
+	files := []string{
+		"templates/new_song.html",
+		"templates/layout.html",
+	}
+	// TODO:  maybe these would be better as objects
+	tpl := template.Must(template.New("base").ParseFiles(files...))
+	render(w, r, tpl, fullData)
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -472,6 +478,24 @@ func downloadFile(URL, fileName string) error {
 	return nil
 }
 
+func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(":: PlayerHandler ::")
+
+	cp := player.GetPlayer()
+	song := player.GetPlaying()
+
+	fullData := map[string]interface{}{
+		"Player": cp,
+		"Song":   song,
+	}
+	files := []string{
+		"templates/player.html",
+		"templates/layout.html",
+	}
+	tpl := template.Must(template.New("base").ParseFiles(files...))
+	render(w, r, tpl, fullData)
+}
+
 func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(":: PlaySongHandler ::")
 	vars := mux.Vars(r)
@@ -498,35 +522,12 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullData := map[string]interface{}{
-		"Song": song,
-	}
-	render(w, r, playerTpl, fullData)
+	http.Redirect(w, r, "/player", 301)
 }
 
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(":: StopSongHandler ::")
-	player.Stop("manual")
+	player.Stop()
 
-	vars := mux.Vars(r)
-	key := vars["song_id"]
-
-	var song *model.Song
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		v := b.Get([]byte(key))
-		err := json.Unmarshal(v, &song)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err))
-		return
-	}
-	fullData := map[string]interface{}{
-		"Song": song,
-	}
-	render(w, r, playerTpl, fullData)
+	http.Redirect(w, r, "/player", 301)
 }
