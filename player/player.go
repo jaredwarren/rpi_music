@@ -14,25 +14,26 @@ import (
 )
 
 var (
-	p *Player
+	p      *Player
+	logger log.Logger
 )
 
-func InitPlayer(logger log.Logger) {
-	if _, err := os.Stat("./song_files"); os.IsNotExist(err) {
-		err := os.Mkdir("./song_files", os.ModeDir)
+func InitPlayer(l log.Logger) {
+	logger = l
+	if _, err := os.Stat(viper.GetString("player.song_root")); os.IsNotExist(err) {
+		err := os.Mkdir(viper.GetString("player.song_root"), os.ModeDir)
 		if err != nil {
 			logger.Panic("error creating song_file dir", log.Error(err))
 		}
 	}
 
-	if _, err := os.Stat("./thumb_files"); os.IsNotExist(err) {
-		err := os.Mkdir("./thumb_files", os.ModeDir)
+	if _, err := os.Stat(viper.GetString("player.thumb_root")); os.IsNotExist(err) {
+		err := os.Mkdir(viper.GetString("player.thumb_root"), os.ModeDir)
 		if err != nil {
 			logger.Panic("error creating thumb_file dir", log.Error(err))
 		}
 	}
 
-	logger.Panic("error creating thumb_file dir", log.Error(err))
 	// TODO: check if ffplay is setup
 }
 
@@ -59,11 +60,13 @@ func Play(song *model.Song) error {
 	if cp.Playing {
 		restart := viper.GetBool("restart")
 		if cp.currentSong.FilePath == song.FilePath && !restart {
-			fmt.Println("song already playing:", song)
+			logger.Info("selected song already playing", log.Any("song", song))
 			return nil
 		}
 		if !viper.GetBool("allow_override") {
-			fmt.Println("song already playing something else:", song)
+			logger.Info("another song already playing", log.Any("song", song))
+			// TODO: if queue enabled add sont to queue, and don't error
+			Error()
 			return nil
 		}
 		Stop()
@@ -84,7 +87,7 @@ func Play(song *model.Song) error {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
 
-	fmt.Printf("Playing: ffplay %+v\n", args)
+	logger.Info("Play song", log.Any("song", song), log.Any("args", args))
 	cmd := exec.Command("ffplay", args...)
 	cp.cmd = cmd
 	err := cmd.Start()
@@ -122,22 +125,31 @@ func Beep() {
 	if !viper.GetBool("beep") {
 		return
 	}
-	cmds := "speaker-test -t sine -f 1000 -l 1"
-	command := strings.Split(cmds, " ")
-	cmd := exec.Command(command[0], command[1:]...)
-	err := cmd.Start()
-	if err != nil {
-		fmt.Println("Beep Error:", err)
+	args := []string{
+		"-nodisp",
+		"-autoexit", // exit after song finishes, otherwise command won't stop
 	}
-	time.Sleep(200 * time.Millisecond)
-	if cmd != nil && cmd.Process != nil {
-		err := cmd.Process.Kill()
-		if err != nil {
-			fmt.Println("Beep kill Error:", err)
-		}
-	}
+	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
+	args = append(args, "sounds/success.wav")
+	cmd := exec.Command("ffplay", args...)
+	cmd.Run()
 }
 
+func Error() {
+	if !viper.GetBool("beep") {
+		return
+	}
+	args := []string{
+		"-nodisp",
+		"-autoexit", // exit after song finishes, otherwise command won't stop
+	}
+	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
+	args = append(args, "sounds/error.wav")
+	cmd := exec.Command("ffplay", args...)
+	cmd.Run()
+}
+
+// runCmd, used to debug commands
 func runCmd(cmds string) ([]byte, error) {
 	command := strings.Split(cmds, " ")
 	if len(command) < 2 {

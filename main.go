@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
@@ -33,7 +32,6 @@ func main() {
 		logger.Info("Disable Mac features.")
 		viper.Set("https", false)
 		viper.Set("rfid-enabled", false)
-		viper.Set("beep", false)
 	}
 
 	// Init Player
@@ -61,6 +59,7 @@ func main() {
 		ReadTimeout:  35 * time.Second,
 		WriteTimeout: 35 * time.Second,
 		Db:           db,
+		Logger:       logger,
 	})
 	defer htmlServer.StopHTTPServer()
 
@@ -78,5 +77,5 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt)
 	<-sigChan
 
-	fmt.Println("\nmain : shutting down")
+	logger.Info("main :shutting down")
 }

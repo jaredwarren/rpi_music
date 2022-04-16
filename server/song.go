@@ -8,16 +8,17 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	bolt "go.etcd.io/bbolt"
 )
 
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: EditSongFormHandler ::")
+	s.logger.Info("EditSongFormHandler")
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
-		fmt.Println("no key")
+		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
 		return
 	}
 	push(w, "/static/style.css")
@@ -41,7 +42,7 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: ListSongHandler ::")
+	s.logger.Info("ListSongHandler")
 	push(w, "/static/style.css")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
@@ -76,7 +77,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: NewSongFormHandler ::")
+	s.logger.Info("NewSongFormHandler")
 
 	push(w, "/static/style.css")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -98,23 +99,22 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: NewSongHandler ::")
-	// 0. Validate input
 	err := r.ParseForm()
 	if err != nil {
-		httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err))
+		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
+	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
 
 	url := r.PostForm.Get("url")
 	if url == "" {
-		httpError(w, fmt.Errorf("need url"))
+		s.httpError(w, fmt.Errorf("need url"), http.StatusBadRequest)
 		return
 	}
 
 	rfid := r.PostForm.Get("rfid")
 	if rfid == "" {
-		httpError(w, fmt.Errorf("need rfid"))
+		s.httpError(w, fmt.Errorf("need rfid"), http.StatusBadRequest)
 		return
 	}
 
@@ -134,7 +134,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 		if err != nil {
-			httpError(w, fmt.Errorf("NewSongHandler|db.View|%w", err))
+			s.httpError(w, fmt.Errorf("NewSongHandler|db.View|%w", err), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -148,7 +148,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	// 1. Download song
 	file, video, err := downloadVideo(url)
 	if err != nil {
-		httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err))
+		s.httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
 		return
 	}
 	tmb, err := downloadThumb(video)
@@ -172,7 +172,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return b.Put([]byte(song.ID), buf)
 	})
 	if err != nil {
-		httpError(w, fmt.Errorf("NewSongHandler|db.Update|%w", err))
+		s.httpError(w, fmt.Errorf("NewSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -180,27 +180,23 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: UpdateSongHandler ::")
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
-		httpError(w, fmt.Errorf("no key"))
+		s.httpError(w, fmt.Errorf("no key"), http.StatusBadRequest)
 		return
 	}
+	s.logger.Info("UpdateSongHandler", log.Any("form", r.PostForm))
 
 	err := r.ParseForm()
 	if err != nil {
-		httpError(w, fmt.Errorf("UpdateSongHandler|ParseForm|%w", err))
+		s.httpError(w, fmt.Errorf("UpdateSongHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
 
 	url := r.PostForm.Get("url")
 	rfid := r.PostForm.Get("rfid")
 	rfid = strings.ReplaceAll(rfid, ":", "")
-
-	fmt.Println(" - key:", key)
-	fmt.Println(" - url:", url)
-	fmt.Println(" - rfid:", rfid)
 
 	// Delete if blank
 	if rfid == "" || url == "" {
@@ -209,7 +205,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 			return b.Delete([]byte(key)) // note: needs to "key"
 		})
 		if err != nil {
-			httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err))
+			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 			return
 		}
 		return
@@ -224,7 +220,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	// try to download file again
 	file, video, err := downloadVideo(url)
 	if err != nil {
-		httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err))
+		s.httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
 		return
 	}
 	tmb, err := downloadThumb(video)
@@ -244,7 +240,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 			return b.Delete([]byte(key)) // note: needs to "key"
 		})
 		if err != nil {
-			httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err))
+			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -264,7 +260,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 		return b.Put([]byte(song.ID), buf)
 	})
 	if err != nil {
-		httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err))
+		s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -275,7 +271,7 @@ func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
-		httpError(w, fmt.Errorf("no key"))
+		s.httpError(w, fmt.Errorf("no key"), http.StatusBadRequest)
 		return
 	}
 	err := s.db.Update(func(tx *bolt.Tx) error {
@@ -283,7 +279,7 @@ func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 		return b.Delete([]byte(key))
 	})
 	if err != nil {
-		httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err))
+		s.httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/songs", 301)

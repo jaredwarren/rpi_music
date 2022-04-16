@@ -5,12 +5,13 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/spf13/viper"
 )
 
 func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: ConfigFormHandler ::")
+	s.logger.Info("ConfigFormHandler")
 
 	push(w, "/static/style.css")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -50,13 +51,12 @@ func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: ConfigHandler ::")
-
 	err := r.ParseForm()
 	if err != nil {
-		httpError(w, fmt.Errorf("ConfigHandler|ParseForm|%w", err))
+		s.httpError(w, fmt.Errorf("ConfigHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
+	s.logger.Info("ConfigHandler", log.Any("form", r.PostForm))
 
 	beep := r.PostForm.Get("beep")
 	viper.Set("beep", beep == "on")
@@ -76,7 +76,7 @@ func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	// Write
 	err = viper.WriteConfig()
 	if err != nil {
-		httpError(w, fmt.Errorf("ConfigHandler|WriteConfig|%w", err))
+		s.httpError(w, fmt.Errorf("ConfigHandler|WriteConfig|%w", err), http.StatusInternalServerError)
 		return
 	}
 

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/kkdai/youtube/v2"
@@ -34,12 +35,14 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	Db           *bolt.DB
+	Logger       log.Logger
 }
 
 // HTMLServer represents the web service that serves up HTML
 type HTMLServer struct {
 	server *http.Server
 	wg     sync.WaitGroup
+	logger log.Logger
 }
 
 // Start launches the HTML Server
@@ -49,7 +52,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	defer cancel()
 
 	// init server
-	s := New(cfg.Db)
+	s := New(cfg.Db, cfg.Logger)
 
 	// Setup Handlers
 	r := mux.NewRouter()
@@ -80,11 +83,12 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// remote media controls (WS?) (play, pause, volume +/-)
 
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
-	r.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir("./song_files"))))
-	r.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir("./thumb_files"))))
+	r.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir(viper.GetString("player.song_root")))))
+	r.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir(viper.GetString("player.thumb_root")))))
 
 	// Create the HTML Server
 	htmlServer := HTMLServer{
+		logger: cfg.Logger,
 		server: &http.Server{
 			Addr:           cfg.Host,
 			Handler:        r,
@@ -97,7 +101,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// Start the listener
 	htmlServer.wg.Add(1)
 	go func() {
-		fmt.Printf("\nHTMLServer : Service started : Host= http://%v\n", cfg.Host)
+		cfg.Logger.Info("Starting HTTP server", log.Any("host", cfg.Host), log.Any("https", viper.GetBool("https")))
 		if viper.GetBool("https") {
 			htmlServer.server.ListenAndServeTLS("localhost.crt", "localhost.key")
 		} else {
@@ -116,21 +120,21 @@ func (htmlServer *HTMLServer) StopHTTPServer() error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	fmt.Printf("HTMLServer : Service stopping\n")
+	htmlServer.logger.Info("Stopping HTTP service...")
 
 	// Attempt the graceful shutdown by closing the listener
 	// and completing all inflight requests
 	if err := htmlServer.server.Shutdown(ctx); err != nil {
 		// Looks like we timed out on the graceful shutdown. Force close.
 		if err := htmlServer.server.Close(); err != nil {
-			fmt.Printf("\nHTMLServer : Service stopping : Error=%v\n", err)
+			htmlServer.logger.Error("error stopping HTML service", log.Error(err))
 			return err
 		}
 	}
 
 	// Wait for the listener to report that it is closed.
 	htmlServer.wg.Wait()
-	fmt.Printf("HTMLServer : Stopped\n")
+	htmlServer.logger.Info("HTTP service stopped")
 	return nil
 }
 
@@ -150,10 +154,11 @@ func init() {
 }
 
 type Server struct {
-	db *bolt.DB
+	db     *bolt.DB
+	logger log.Logger
 }
 
-func New(db *bolt.DB) *Server {
+func New(db *bolt.DB, l log.Logger) *Server {
 	err := db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(SongBucket))
 		if err != nil {
@@ -166,7 +171,8 @@ func New(db *bolt.DB) *Server {
 	}
 
 	return &Server{
-		db: db,
+		db:     db,
+		logger: l,
 	}
 }
 
@@ -205,10 +211,8 @@ func downloadVideo(videoID string) (string, *youtube.Video, error) {
 
 	bestFormat := formats[0]
 	ext := getExt(bestFormat.MimeType)
-
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
-
-	fileName := fmt.Sprintf("song_files/%s.%s", sEnc, ext)
+	fileName := filepath.Join(viper.GetString("player.song_root"), fmt.Sprintf("%s%s", sEnc, ext))
 
 	fmt.Println("downloading...", video.Title, "->", fileName)
 
@@ -243,16 +247,15 @@ func downloadVideo(videoID string) (string, *youtube.Video, error) {
 func getExt(mimeType string) string {
 	ls := strings.ToLower(mimeType)
 	if strings.Contains(ls, "video/mp4") {
-		return "mp4"
+		return ".mp4"
 	}
 	if strings.Contains(ls, "video/webm") {
-		return "webm"
+		return ".webm"
 	}
 	fmt.Println("~~~~ unknown::", mimeType)
 	return "" //
 }
 
-// todo add this everywhere downloadVideo is used
 func downloadThumb(video *youtube.Video) (string, error) {
 	if len(video.Thumbnails) == 0 {
 		return "", fmt.Errorf("no thumbs for video")
@@ -271,9 +274,8 @@ func downloadThumb(video *youtube.Video) (string, error) {
 	// clean up `.../hqdefault.jpg?sqp=-oaymwEj...`
 	ext := filepath.Ext(fileURL)
 	ext = strings.Split(ext, "?")[0]
-
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
-	fileName := fmt.Sprintf("thumb_files/%s%s", sEnc, ext)
+	fileName := filepath.Join(viper.GetString("player.thumb_root"), fmt.Sprintf("%s%s", sEnc, ext))
 
 	err := downloadFile(fileURL, fileName)
 	if err != nil {
@@ -344,13 +346,13 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err))
+		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
 		return
 	}
-	player.Beep()
 	err = player.Play(song)
 	if err != nil {
-		httpError(w, fmt.Errorf("PlaySongHandler|player.Play|%w", err))
+		// TODO: check if err is user error or system error
+		s.httpError(w, fmt.Errorf("PlaySongHandler|player.Play|%w", err), http.StatusInternalServerError)
 		return
 	}
 

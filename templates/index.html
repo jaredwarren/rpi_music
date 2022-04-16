@@ -1,6 +1,6 @@
 {{template "base" .}}
 
-{{define "title"}}<h1>🎵Songs!🎵 🤩</h1>{{end}}
+{{define "title"}}Song List{{end}}
 
 {{define "nav"}}
 <ul class="tab tab-block">
@@ -23,9 +23,9 @@
         <thead>
             <tr>
                 <!-- <td>ID</td> -->
-                <td>RFID</td>
+                <td>Thumb</td>
                 <td>Title</td>
-                <td>URL</td>
+                <!-- <td>URL</td> -->
                 <td>Edit</td>
                 <td>&nbsp;</td>
                 <td>Delete</td>
@@ -37,9 +37,10 @@
             {{range $index, $s := .Songs}}
             <tr>
                 <!-- <td>{{$s.ID}}</td> -->
-                <td>{{$s.RFID}}</td>
-                <td>{{$s.Title}}</td>
-                <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td>
+                <!-- <td>{{$s.RFID}}</td> -->
+                <td><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
+                <td><a href="{{$s.URL}}" target="_blank">{{$s.Title}}</a></td>
+                <!-- <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td> -->
                 <td><a  class="btn btn-secondary" href="/song/{{$s.ID}}"><i class="icon icon-edit"></i></a></td>
                 <td>&nbsp;</td>
                 <td><a class="btn btn-primary" href="/song/{{$s.ID}}/play">▶️</a></td>

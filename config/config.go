@@ -54,7 +54,7 @@ func SetDefaults() {
 	viper.Set("rfid-enabled", true)
 	viper.Set("host", ":8000")
 	viper.Set("startup.play", true)
-	viper.Set("startup.file", "song_files/windows-xp-startup.mp3")
+	viper.Set("startup.file", "sounds/windows-xp-startup.mp3")
 
 	viper.Set("beep", true)
 	viper.Set("player.loop", false)
