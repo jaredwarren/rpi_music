@@ -13,9 +13,6 @@ import (
 func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("ConfigFormHandler")
 
-	push(w, "/static/style.css")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	song := &model.Song{
 		ID: "new",
 	}
@@ -47,7 +44,7 @@ func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input class="form-input" id="%s" type="number" placeholder="00" value="%d" name="%s">`, feature, feature, feature, v, feature))
 		},
 	}).ParseFiles(files...))
-	render(w, r, tpl, fullData)
+	s.render(w, r, tpl, fullData)
 }
 
 func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {

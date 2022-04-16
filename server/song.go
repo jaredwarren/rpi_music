@@ -14,15 +14,12 @@ import (
 )
 
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("EditSongFormHandler")
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
 		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
 		return
 	}
-	push(w, "/static/style.css")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	var song *model.Song
 	s.db.View(func(tx *bolt.Tx) error {
@@ -38,14 +35,10 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]interface{}{
 		"Song": song,
 	}
-	render(w, r, editSongFormTpl, fullData)
+	s.render(w, r, editSongFormTpl, fullData)
 }
 
 func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("ListSongHandler")
-	push(w, "/static/style.css")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	songs := []*model.Song{}
 
 	s.db.View(func(tx *bolt.Tx) error {
@@ -73,21 +66,14 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	homepageTpl = template.Must(template.ParseFiles(files...))
 
-	render(w, r, homepageTpl, fullData)
+	s.render(w, r, homepageTpl, fullData)
 }
 
 func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("NewSongFormHandler")
-
-	push(w, "/static/style.css")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	song := &model.Song{
-		ID: "new",
-	}
-
 	fullData := map[string]interface{}{
-		"Song": song,
+		"Song": &model.Song{
+			ID: "new",
+		},
 	}
 	files := []string{
 		"templates/new_song.html",
@@ -95,7 +81,7 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// TODO:  maybe these would be better as objects
 	tpl := template.Must(template.New("base").ParseFiles(files...))
-	render(w, r, tpl, fullData)
+	s.render(w, r, tpl, fullData)
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -118,8 +104,6 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println(" - url:", url)
-	fmt.Println(" - rfid:", rfid)
 	rfid = strings.ReplaceAll(rfid, ":", "")
 
 	overwrite := true // TODO: make param,
@@ -146,14 +130,14 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Download song
-	file, video, err := downloadVideo(url)
+	file, video, err := downloadVideo(url, s.logger)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
 		return
 	}
 	tmb, err := downloadThumb(video)
 	if err != nil {
-		fmt.Println("NewSongHandler|downloadThumb|", err)
+		s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
 		// ignore err
 	}
 
@@ -218,14 +202,14 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// try to download file again
-	file, video, err := downloadVideo(url)
+	file, video, err := downloadVideo(url, s.logger)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
 		return
 	}
 	tmb, err := downloadThumb(video)
 	if err != nil {
-		fmt.Println("NewSongHandler|downloadThumb|", err)
+		s.logger.Warn("UpdateSongHandler|downloadThumb", log.Error(err))
 		// ignore err
 	}
 

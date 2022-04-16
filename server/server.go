@@ -56,6 +56,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// Setup Handlers
 	r := mux.NewRouter()
+	r.Use(s.loggingMiddleware)
 
 	// list songs
 	r.HandleFunc("/songs", s.ListSongHandler).Methods("GET")
@@ -111,6 +112,14 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	}()
 
 	return &htmlServer
+}
+
+func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.logger.Info(r.RequestURI)
+		// Call the next handler, which can be another middleware in the chain, or the final handler.
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Stop turns off the HTML Server
@@ -177,32 +186,32 @@ func New(db *bolt.DB, l log.Logger) *Server {
 }
 
 // Render a template, or server error.
-func render(w http.ResponseWriter, r *http.Request, tpl *template.Template, data interface{}) {
+func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Template, data interface{}) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	buf := new(bytes.Buffer)
 	if err := tpl.Execute(buf, data); err != nil {
-		fmt.Printf("\nRender Error: %v\n", err)
+		s.logger.Error("template render error", log.Error(err))
 		return
 	}
 	w.Write(buf.Bytes())
 }
 
 // Push the given resource to the client.
-func push(w http.ResponseWriter, resource string) {
+func (s *Server) push(w http.ResponseWriter, resource string) {
 	pusher, ok := w.(http.Pusher)
 	if ok {
 		err := pusher.Push(resource, nil)
 		if err != nil {
-			fmt.Println("push error:", err)
+			s.logger.Error("push error", log.Error(err))
 		}
 		return
 	}
 }
 
-func downloadVideo(videoID string) (string, *youtube.Video, error) {
+func downloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error) {
 	client := youtube.Client{}
 	video, err := client.GetVideo(videoID)
 	if err != nil {
-		fmt.Println("downloadVideo|client.GetVideo|", err)
 		return "", video, err
 	}
 
@@ -214,32 +223,28 @@ func downloadVideo(videoID string) (string, *youtube.Video, error) {
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
 	fileName := filepath.Join(viper.GetString("player.song_root"), fmt.Sprintf("%s%s", sEnc, ext))
 
-	fmt.Println("downloading...", video.Title, "->", fileName)
+	logger.Info("downloading video", log.Any("title", video.Title), log.Any("file", fileName))
 
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		stream, _, err := client.GetStream(video, &bestFormat)
 		if err != nil {
-			fmt.Println("downloadVideo|client.GetStream|", err)
 			return fileName, video, err
 		}
 
 		file, err := os.Create(fileName)
 		if err != nil {
-			fmt.Println("downloadVideo|os.Create|", err)
 			return fileName, video, err
 		}
 		defer file.Close()
 
 		_, err = io.Copy(file, stream)
 		if err != nil {
-			fmt.Println("downloadVideo|io.Copy|", err)
 			return fileName, video, err
 		}
 	} else if err != nil {
-		fmt.Println("downloadVideo|os.Stat|", err)
 		return fileName, video, err
 	} else {
-		fmt.Println("file already exists:", fileName)
+		logger.Warn("file already exists", log.Any("title", video.Title), log.Any("file", fileName))
 	}
 	return fileName, video, nil
 }
@@ -252,7 +257,6 @@ func getExt(mimeType string) string {
 	if strings.Contains(ls, "video/webm") {
 		return ".webm"
 	}
-	fmt.Println("~~~~ unknown::", mimeType)
 	return "" //
 }
 
@@ -313,8 +317,6 @@ func downloadFile(URL, fileName string) error {
 }
 
 func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: PlayerHandler ::")
-
 	cp := player.GetPlayer()
 	song := player.GetPlaying()
 
@@ -327,11 +329,10 @@ func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 		"templates/layout.html",
 	}
 	tpl := template.Must(template.New("base").ParseFiles(files...))
-	render(w, r, tpl, fullData)
+	s.render(w, r, tpl, fullData)
 }
 
 func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: PlaySongHandler ::")
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 
@@ -360,8 +361,6 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: StopSongHandler ::")
 	player.Stop()
-
 	http.Redirect(w, r, "/player", 301)
 }
