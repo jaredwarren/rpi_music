@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -12,17 +13,126 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/kkdai/youtube/v2"
+	"github.com/spf13/viper"
 	bolt "go.etcd.io/bbolt"
 )
 
 const (
 	SongBucket = "SongBucket"
 )
+
+// Config provides basic configuration
+type Config struct {
+	Host         string
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	Db           *bolt.DB
+}
+
+// HTMLServer represents the web service that serves up HTML
+type HTMLServer struct {
+	server *http.Server
+	wg     sync.WaitGroup
+}
+
+// Start launches the HTML Server
+func StartHTTPServer(cfg *Config) *HTMLServer {
+	// Setup Context
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// init server
+	s := New(cfg.Db)
+
+	// Setup Handlers
+	r := mux.NewRouter()
+
+	// list songs
+	r.HandleFunc("/songs", s.ListSongHandler).Methods("GET")
+	// new song form
+	r.HandleFunc("/song/new", s.NewSongFormHandler).Methods("GET")
+	// submit new song
+	r.HandleFunc("/song", s.NewSongHandler).Methods("POST")
+	r.HandleFunc("/song/new", s.NewSongHandler).Methods("POST")
+	// Edit Song Form
+	r.HandleFunc("/song/{song_id}", s.EditSongFormHandler).Methods("GET")
+	// new link
+	r.HandleFunc("/song/{song_id}", s.UpdateSongHandler).Methods("PUT", "POST")
+	// delete song
+	r.HandleFunc("/song/{song_id}", s.DeleteSongHandler).Methods("DELETE")
+	r.HandleFunc("/song/{song_id}/delete", s.DeleteSongHandler).Methods("GET") // temp unitl I can get a better UI
+
+	r.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
+	r.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
+
+	r.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
+	r.HandleFunc("/config", s.ConfigHandler).Methods("POST")
+
+	r.HandleFunc("/player", s.PlayerHandler).Methods("GET")
+	// TODO:play locally or remotely
+	// remote media controls (WS?) (play, pause, volume +/-)
+
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	r.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir("./song_files"))))
+	r.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir("./thumb_files"))))
+
+	// Create the HTML Server
+	htmlServer := HTMLServer{
+		server: &http.Server{
+			Addr:           cfg.Host,
+			Handler:        r,
+			ReadTimeout:    cfg.ReadTimeout,
+			WriteTimeout:   cfg.WriteTimeout,
+			MaxHeaderBytes: 1 << 20,
+		},
+	}
+
+	// Start the listener
+	htmlServer.wg.Add(1)
+	go func() {
+		fmt.Printf("\nHTMLServer : Service started : Host= http://%v\n", cfg.Host)
+		if viper.GetBool("https") {
+			htmlServer.server.ListenAndServeTLS("localhost.crt", "localhost.key")
+		} else {
+			htmlServer.server.ListenAndServe()
+		}
+		htmlServer.wg.Done()
+	}()
+
+	return &htmlServer
+}
+
+// Stop turns off the HTML Server
+func (htmlServer *HTMLServer) StopHTTPServer() error {
+	// Create a context to attempt a graceful 5 second shutdown.
+	const timeout = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	fmt.Printf("HTMLServer : Service stopping\n")
+
+	// Attempt the graceful shutdown by closing the listener
+	// and completing all inflight requests
+	if err := htmlServer.server.Shutdown(ctx); err != nil {
+		// Looks like we timed out on the graceful shutdown. Force close.
+		if err := htmlServer.server.Close(); err != nil {
+			fmt.Printf("\nHTMLServer : Service stopping : Error=%v\n", err)
+			return err
+		}
+	}
+
+	// Wait for the listener to report that it is closed.
+	htmlServer.wg.Wait()
+	fmt.Printf("HTMLServer : Stopped\n")
+	return nil
+}
 
 // Templates
 var (
@@ -58,289 +168,6 @@ func New(db *bolt.DB) *Server {
 	return &Server{
 		db: db,
 	}
-}
-
-func ArticlesCategoryHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Category: %v\n", vars["category"])
-}
-
-func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: EditSongFormHandler ::")
-	vars := mux.Vars(r)
-	key := vars["song_id"]
-	if key == "" {
-		fmt.Println("no key")
-		return
-	}
-	push(w, "/static/style.css")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	var song *model.Song
-	s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		v := b.Get([]byte(key))
-		err := json.Unmarshal(v, &song)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-
-	fullData := map[string]interface{}{
-		"Song": song,
-	}
-	render(w, r, editSongFormTpl, fullData)
-}
-
-func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: ListSongHandler ::")
-	push(w, "/static/style.css")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	songs := []*model.Song{}
-
-	s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var song *model.Song
-			err := json.Unmarshal(v, &song)
-			if err != nil {
-				return err
-			}
-			songs = append(songs, song)
-		}
-		return nil
-	})
-
-	fullData := map[string]interface{}{
-		"Songs": songs,
-	}
-
-	// for now
-	files := []string{
-		"templates/index.html",
-		"templates/layout.html",
-	}
-	homepageTpl = template.Must(template.ParseFiles(files...))
-
-	render(w, r, homepageTpl, fullData)
-}
-
-func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: NewSongFormHandler ::")
-
-	push(w, "/static/style.css")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	song := &model.Song{
-		ID: "new",
-	}
-
-	fullData := map[string]interface{}{
-		"Song": song,
-	}
-	files := []string{
-		"templates/new_song.html",
-		"templates/layout.html",
-	}
-	// TODO:  maybe these would be better as objects
-	tpl := template.Must(template.New("base").ParseFiles(files...))
-	render(w, r, tpl, fullData)
-}
-
-func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: NewSongHandler ::")
-	// 0. Validate input
-	err := r.ParseForm()
-	if err != nil {
-		httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err))
-		return
-	}
-
-	url := r.PostForm.Get("url")
-	if url == "" {
-		httpError(w, fmt.Errorf("need url"))
-		return
-	}
-
-	rfid := r.PostForm.Get("rfid")
-	if rfid == "" {
-		httpError(w, fmt.Errorf("need rfid"))
-		return
-	}
-
-	fmt.Println(" - url:", url)
-	fmt.Println(" - rfid:", rfid)
-	rfid = strings.ReplaceAll(rfid, ":", "")
-
-	overwrite := true // TODO: make param,
-	if !overwrite {
-		// check for duplicates
-		err = s.db.View(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(SongBucket))
-			v := b.Get([]byte(rfid))
-			if v != nil {
-				return fmt.Errorf("already exists")
-			}
-			return nil
-		})
-		if err != nil {
-			httpError(w, fmt.Errorf("NewSongHandler|db.View|%w", err))
-			return
-		}
-	}
-
-	song := &model.Song{
-		ID:   rfid,
-		URL:  url,
-		RFID: rfid,
-	}
-
-	// 1. Download song
-	file, video, err := downloadVideo(url)
-	if err != nil {
-		httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err))
-		return
-	}
-	tmb, err := downloadThumb(video)
-	if err != nil {
-		fmt.Println("NewSongHandler|downloadThumb|", err)
-		// ignore err
-	}
-
-	song.Thumbnail = tmb
-	song.FilePath = file
-	song.Title = video.Title
-
-	// 2. Store
-	err = s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-
-		buf, err := json.Marshal(song)
-		if err != nil {
-			return err
-		}
-		return b.Put([]byte(song.ID), buf)
-	})
-	if err != nil {
-		httpError(w, fmt.Errorf("NewSongHandler|db.Update|%w", err))
-		return
-	}
-
-	http.Redirect(w, r, "/songs", 301)
-}
-
-func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(":: UpdateSongHandler ::")
-	vars := mux.Vars(r)
-	key := vars["song_id"]
-	if key == "" {
-		httpError(w, fmt.Errorf("no key"))
-		return
-	}
-
-	err := r.ParseForm()
-	if err != nil {
-		httpError(w, fmt.Errorf("UpdateSongHandler|ParseForm|%w", err))
-		return
-	}
-
-	url := r.PostForm.Get("url")
-	rfid := r.PostForm.Get("rfid")
-	rfid = strings.ReplaceAll(rfid, ":", "")
-
-	fmt.Println(" - key:", key)
-	fmt.Println(" - url:", url)
-	fmt.Println(" - rfid:", rfid)
-
-	// Delete if blank
-	if rfid == "" || url == "" {
-		err := s.db.Update(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(SongBucket))
-			return b.Delete([]byte(key)) // note: needs to "key"
-		})
-		if err != nil {
-			httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err))
-			return
-		}
-		return
-	}
-
-	song := &model.Song{
-		ID:   rfid,
-		URL:  url,
-		RFID: rfid,
-	}
-
-	// try to download file again
-	file, video, err := downloadVideo(url)
-	if err != nil {
-		httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err))
-		return
-	}
-	tmb, err := downloadThumb(video)
-	if err != nil {
-		fmt.Println("NewSongHandler|downloadThumb|", err)
-		// ignore err
-	}
-
-	song.Thumbnail = tmb
-	song.FilePath = file
-	song.Title = video.Title
-
-	// delete old key if rfid id different then key
-	if key != rfid {
-		err := s.db.Update(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(SongBucket))
-			return b.Delete([]byte(key)) // note: needs to "key"
-		})
-		if err != nil {
-			httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err))
-			return
-		}
-	}
-
-	// Update otherwise
-	err = s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		v := b.Get([]byte(key)) // note: needs to "key"
-		if v == nil {
-			return fmt.Errorf("missing id")
-		}
-
-		buf, err := json.Marshal(song)
-		if err != nil {
-			return err
-		}
-		return b.Put([]byte(song.ID), buf)
-	})
-	if err != nil {
-		httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err))
-		return
-	}
-
-	http.Redirect(w, r, "/songs", 301)
-}
-
-func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	key := vars["song_id"]
-	if key == "" {
-		httpError(w, fmt.Errorf("no key"))
-		return
-	}
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		return b.Delete([]byte(key))
-	})
-	if err != nil {
-		httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err))
-		return
-	}
-	http.Redirect(w, r, "/songs", 301)
 }
 
 // Render a template, or server error.

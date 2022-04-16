@@ -2,10 +2,15 @@ package rfid
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/jaredwarren/rpi_music/log"
+	"github.com/jaredwarren/rpi_music/model"
+	"github.com/jaredwarren/rpi_music/player"
+	"github.com/jaredwarren/rpi_music/server"
+	bolt "go.etcd.io/bbolt"
 	"periph.io/x/conn/v3/gpio"
 	"periph.io/x/conn/v3/gpio/gpioreg"
 	"periph.io/x/conn/v3/spi"
@@ -16,15 +21,32 @@ import (
 
 // default pins used for rest and irq
 const (
+	// TODO: move to config
 	resetPin = "P1_22" // GPIO 25
 	irqPin   = "P1_18" // GPIO 24
 )
+
+func InitRFIDReader(db *bolt.DB, logger log.Logger) *RFIDReader {
+	logger.Info("Initializing RFID")
+	cfg := DefaultConfig()
+	cfg.logger = logger
+	cfg.db = db
+	r, err := New(cfg)
+	if err != nil {
+		logger.Panic("error creating new reader", log.Error(err))
+	}
+
+	r.Start()
+	return r
+}
 
 type Config struct {
 	SPIPort    string
 	ResetPin   string
 	IRQPin     string
 	IRQTimeout time.Duration
+	logger     log.Logger
+	db         *bolt.DB
 }
 
 type RFIDReader struct {
@@ -32,21 +54,19 @@ type RFIDReader struct {
 	port       spi.PortCloser
 	IRQTimeout time.Duration
 	IsReady    bool
+	logger     log.Logger
+	db         *bolt.DB
 }
 
 func DefaultConfig() *Config {
 	cfg := &Config{}
-
 	// Note: SPIPort is ""
-
 	if cfg.ResetPin == "" {
 		cfg.ResetPin = resetPin
 	}
-
 	if cfg.IRQPin == "" {
 		cfg.IRQPin = irqPin
 	}
-
 	return cfg
 }
 
@@ -57,9 +77,11 @@ func New(cfg *Config) (*RFIDReader, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
-	log.Printf("Setting up new reader:%+v\n", cfg)
 
-	rr := &RFIDReader{}
+	rr := &RFIDReader{
+		logger: cfg.logger,
+		db:     cfg.db,
+	}
 
 	// guarantees all drivers are loaded.
 	if _, err := host.Init(); err != nil {
@@ -96,8 +118,45 @@ func New(cfg *Config) (*RFIDReader, error) {
 
 	rr.IsReady = true
 
-	log.Println("Started rfid reader.")
+	cfg.logger.Info("RFID ready")
 	return rr, nil
+}
+
+func (r *RFIDReader) Start() {
+	go func() {
+		for {
+			id := r.ReadID()
+			var song *model.Song
+			err := r.db.View(func(tx *bolt.Tx) error {
+				b := tx.Bucket([]byte(server.SongBucket))
+				v := b.Get([]byte(id))
+				if v == nil {
+					return nil
+				}
+				err := json.Unmarshal(v, &song)
+				if err != nil {
+					return err
+				}
+				return nil
+			})
+			if err != nil {
+				r.logger.Error("error reading db", log.Error(err))
+			}
+			if song != nil {
+				r.logger.Info("found song", log.Any("song", song))
+				player.Beep()
+				err := player.Play(song)
+				if err != nil {
+					r.logger.Error("error playing song", log.Error(err))
+				}
+			} else {
+				r.logger.Info("song id not found", log.Any("id", id))
+			}
+
+			// cooldown
+			time.Sleep(2 * time.Second)
+		}
+	}()
 }
 
 func (r *RFIDReader) ReadID() string {
@@ -108,7 +167,6 @@ func (r *RFIDReader) ReadID() string {
 		close(cb)
 	}()
 	go func() {
-		log.Printf("ready %s", r.RFID.String())
 		for {
 			// trying to read UID
 			if r.IsReady {
@@ -138,9 +196,9 @@ func (r *RFIDReader) Close() {
 	r.IsReady = false
 	// closerfid is idling the RFID device and closes spi port.
 	if err := r.RFID.Halt(); err != nil {
-		log.Printf("[E] rfid.Halt:", err)
+		r.logger.Error("rfid halt error", log.Error(err))
 	}
 	if err := r.port.Close(); err != nil {
-		log.Printf("[E] port.Close:", err)
+		r.logger.Error("rfid port close error", log.Error(err))
 	}
 }

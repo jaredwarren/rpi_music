@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/spf13/viper"
 )
@@ -16,21 +17,22 @@ var (
 	p *Player
 )
 
-func InitPlayer() {
+func InitPlayer(logger log.Logger) {
 	if _, err := os.Stat("./song_files"); os.IsNotExist(err) {
 		err := os.Mkdir("./song_files", os.ModeDir)
 		if err != nil {
-			panic(err.Error())
+			logger.Panic("error creating song_file dir", log.Error(err))
 		}
 	}
 
 	if _, err := os.Stat("./thumb_files"); os.IsNotExist(err) {
 		err := os.Mkdir("./thumb_files", os.ModeDir)
 		if err != nil {
-			panic(err.Error())
+			logger.Panic("error creating thumb_file dir", log.Error(err))
 		}
 	}
 
+	logger.Panic("error creating thumb_file dir", log.Error(err))
 	// TODO: check if ffplay is setup
 }
 

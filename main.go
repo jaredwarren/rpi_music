@@ -1,18 +1,14 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
-	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/config"
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/jaredwarren/rpi_music/rfid"
@@ -26,45 +22,49 @@ const (
 )
 
 func main() {
-	config.InitConfig()
+	logger := log.NewStdLogger(log.Debug)
 
-	player.InitPlayer()
+	// Init Config
+	config.InitConfig(logger)
+	// logger.SetLevel(log.Level(viper.GetInt64("log_level")))
 
-	// things that don't work on mac
+	// override things that don't work on mac
 	if runtime.GOOS == "darwin" {
+		logger.Info("Disable Mac features.")
 		viper.Set("https", false)
 		viper.Set("rfid-enabled", false)
 		viper.Set("beep", false)
 	}
 
-	serverCfg := Config{
-		Host:         viper.GetString("host"),
-		ReadTimeout:  35 * time.Second,
-		WriteTimeout: 35 * time.Second,
-	}
-
+	// Init Player
+	player.InitPlayer(logger)
 	defer func() {
 		player.Stop()
 	}()
 
-	// init DB
-	// Open the my.db data file in your current directory.
-	// It will be created if it doesn't exist.
+	// Init DB
 	db, err := bolt.Open(DBPath, 0600, nil)
 	if err != nil {
-		panic(err)
+		logger.Panic("error opening db", log.Error(err))
 	}
 	defer db.Close()
-	serverCfg.db = db
 
+	// Init RFID
 	if viper.GetBool("rfid-enabled") {
-		rfid := StartRFIDReader(db)
-		defer rfid.Close()
+		r := rfid.InitRFIDReader(db, logger)
+		defer r.Close()
 	}
 
-	htmlServer := StartHTTPServer(serverCfg)
+	// Init Server
+	htmlServer := server.StartHTTPServer(&server.Config{
+		Host:         viper.GetString("host"),
+		ReadTimeout:  35 * time.Second,
+		WriteTimeout: 35 * time.Second,
+		Db:           db,
+	})
 	defer htmlServer.StopHTTPServer()
 
+	// Ready
 	if viper.GetBool("startup.play") {
 		go player.Play(&model.Song{
 			FilePath: viper.GetString("startup.file"),
@@ -73,157 +73,10 @@ func main() {
 		go player.Beep()
 	}
 
+	// Shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 	<-sigChan
 
 	fmt.Println("\nmain : shutting down")
-}
-
-func StartRFIDReader(db *bolt.DB) *rfid.RFIDReader {
-	r, err := rfid.New(nil)
-	if err != nil {
-		panic(err)
-	}
-
-	go func() {
-		for {
-			id := r.ReadID()
-			fmt.Println("Look for ID:", id)
-			var song *model.Song
-			db.View(func(tx *bolt.Tx) error {
-				b := tx.Bucket([]byte(server.SongBucket))
-				v := b.Get([]byte(id))
-				if v == nil {
-					return nil
-				}
-				err := json.Unmarshal(v, &song)
-				if err != nil {
-					return err
-				}
-				return nil
-			})
-			if song != nil {
-				fmt.Printf("=== PLAY! === \n{%+v}\n", song)
-				player.Beep()
-				err := player.Play(song)
-				if err != nil {
-					fmt.Println("::::[E]", err)
-				}
-			} else {
-				fmt.Printf("Not found \n")
-			}
-
-			// cooldown
-			time.Sleep(2 * time.Second)
-		}
-	}()
-
-	return r
-}
-
-// Config provides basic configuration
-type Config struct {
-	Host         string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	db           *bolt.DB
-}
-
-// HTMLServer represents the web service that serves up HTML
-type HTMLServer struct {
-	server *http.Server
-	wg     sync.WaitGroup
-}
-
-// Start launches the HTML Server
-func StartHTTPServer(cfg Config) *HTMLServer {
-	// Setup Context
-	_, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// init server
-	s := server.New(cfg.db)
-
-	// Setup Handlers
-	r := mux.NewRouter()
-
-	// list songs
-	r.HandleFunc("/songs", s.ListSongHandler).Methods("GET")
-	// new song form
-	r.HandleFunc("/song/new", s.NewSongFormHandler).Methods("GET")
-	// submit new song
-	r.HandleFunc("/song", s.NewSongHandler).Methods("POST")
-	r.HandleFunc("/song/new", s.NewSongHandler).Methods("POST")
-	// Edit Song Form
-	r.HandleFunc("/song/{song_id}", s.EditSongFormHandler).Methods("GET")
-	// new link
-	r.HandleFunc("/song/{song_id}", s.UpdateSongHandler).Methods("PUT", "POST")
-	// delete song
-	r.HandleFunc("/song/{song_id}", s.DeleteSongHandler).Methods("DELETE")
-	r.HandleFunc("/song/{song_id}/delete", s.DeleteSongHandler).Methods("GET") // temp unitl I can get a better UI
-
-	r.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
-	r.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
-
-	r.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
-	r.HandleFunc("/config", s.ConfigHandler).Methods("POST")
-
-	r.HandleFunc("/player", s.PlayerHandler).Methods("GET")
-	// TODO:play locally or remotely
-	// remote media controls (WS?) (play, pause, volume +/-)
-
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
-	r.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir("./song_files"))))
-	r.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir("./thumb_files"))))
-
-	// Create the HTML Server
-	htmlServer := HTMLServer{
-		server: &http.Server{
-			Addr:           cfg.Host,
-			Handler:        r,
-			ReadTimeout:    cfg.ReadTimeout,
-			WriteTimeout:   cfg.WriteTimeout,
-			MaxHeaderBytes: 1 << 20,
-		},
-	}
-
-	// Start the listener
-	htmlServer.wg.Add(1)
-	go func() {
-		fmt.Printf("\nHTMLServer : Service started : Host= http://%v\n", cfg.Host)
-		if viper.GetBool("https") {
-			htmlServer.server.ListenAndServeTLS("localhost.crt", "localhost.key")
-		} else {
-			htmlServer.server.ListenAndServe()
-		}
-		htmlServer.wg.Done()
-	}()
-
-	return &htmlServer
-}
-
-// Stop turns off the HTML Server
-func (htmlServer *HTMLServer) StopHTTPServer() error {
-	// Create a context to attempt a graceful 5 second shutdown.
-	const timeout = 5 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	fmt.Printf("HTMLServer : Service stopping\n")
-
-	// Attempt the graceful shutdown by closing the listener
-	// and completing all inflight requests
-	if err := htmlServer.server.Shutdown(ctx); err != nil {
-		// Looks like we timed out on the graceful shutdown. Force close.
-		if err := htmlServer.server.Close(); err != nil {
-			fmt.Printf("\nHTMLServer : Service stopping : Error=%v\n", err)
-			return err
-		}
-	}
-
-	// Wait for the listener to report that it is closed.
-	htmlServer.wg.Wait()
-	fmt.Printf("HTMLServer : Stopped\n")
-	return nil
 }

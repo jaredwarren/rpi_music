@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/spf13/viper"
 )
 
@@ -13,28 +14,30 @@ const (
 	ConfigPath = "./config"
 )
 
-func InitConfig() {
+func InitConfig(logger log.Logger) {
 	viper.SetConfigName(ConfigFile) // name of config file (without extension)
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(ConfigPath)
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			writeDefaultConfig()
+			writeDefaultConfig(logger)
 		} else {
-			panic(fmt.Errorf("Fatal error config file: %w \n", err))
+			logger.Panic("error reading config", log.Error(err))
 		}
 	}
 }
 
-func writeDefaultConfig() {
-	f, err := os.Create(filepath.Join(ConfigPath, fmt.Sprintf("%s.yml", ConfigFile)))
+func writeDefaultConfig(logger log.Logger) {
+	fp := filepath.Join(ConfigPath, fmt.Sprintf("%s.yml", ConfigFile))
+	logger.Info("writing default config", log.Any("file_path", fp))
+	f, err := os.Create(fp)
 	if err != nil {
-		panic(err.Error())
+		logger.Panic("error creating config file", log.Any("file_path", fp), log.Error(err))
 	}
 	f.Close()
 
 	if err := viper.ReadInConfig(); err != nil {
-		panic(fmt.Errorf("Fatal error new config file: %w \n", err))
+		logger.Panic("error reading config file", log.Error(err))
 	}
 
 	SetDefaults()
@@ -42,7 +45,7 @@ func writeDefaultConfig() {
 	// Write config
 	err = viper.WriteConfig()
 	if err != nil {
-		panic(fmt.Sprintf("writeDefaultConfig|WriteConfig|%s", err))
+		logger.Panic("error reading config file", log.Error(err))
 	}
 }
 
