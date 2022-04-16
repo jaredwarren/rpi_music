@@ -68,7 +68,7 @@ func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	viper.Set("player.volume", volume)
 
 	startupSound := r.PostForm.Get("startup.play")
-	viper.Set("startup.play", startupSound)
+	viper.Set("startup.play", startupSound == "on")
 
 	// Write
 	err = viper.WriteConfig()

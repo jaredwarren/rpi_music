@@ -43,8 +43,6 @@ add link to "songs" to show player without playing
 Documentation and cleanup
 Playlist
 
-show image with video
-
 add config page
 
 player queue
