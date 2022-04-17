@@ -71,6 +71,7 @@ func Play(song *model.Song) error {
 		}
 		Stop()
 	}
+	Beep()
 
 	args := []string{
 		"-nodisp",
@@ -122,9 +123,7 @@ func GetPlaying() *model.Song {
 }
 
 func Beep() {
-	fmt.Println("~~~~~~~~~ BEEP!!!")
 	if !viper.GetBool("beep") {
-		fmt.Println("~~~~~~~~~ NO BEEP!!!")
 		return
 	}
 	args := []string{
@@ -133,8 +132,6 @@ func Beep() {
 	}
 	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
 	args = append(args, "sounds/success.wav")
-	fmt.Println(args)
-	logger.Error("ffplay", log.Any("args", args))
 	cmd := exec.Command("ffplay", args...)
 	cmd.Run()
 }
