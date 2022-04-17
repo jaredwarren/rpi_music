@@ -131,6 +131,7 @@ func Beep() {
 	}
 	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
 	args = append(args, "sounds/success.wav")
+	logger.Error("ffplay", log.Any("args", args))
 	cmd := exec.Command("ffplay", args...)
 	cmd.Run()
 }
