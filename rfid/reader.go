@@ -144,6 +144,7 @@ func (r *RFIDReader) Start() {
 			}
 			if song != nil {
 				r.logger.Info("found song", log.Any("song", song))
+				player.Beep()
 				err := player.Play(song)
 				if err != nil {
 					r.logger.Error("error playing song", log.Error(err))

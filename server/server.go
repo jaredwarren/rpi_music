@@ -350,6 +350,7 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
 		return
 	}
+	player.Beep()
 	err = player.Play(song)
 	if err != nil {
 		// TODO: check if err is user error or system error

@@ -71,7 +71,6 @@ func Play(song *model.Song) error {
 		}
 		Stop()
 	}
-	Beep()
 
 	args := []string{
 		"-nodisp",
