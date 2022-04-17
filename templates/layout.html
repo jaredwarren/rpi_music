@@ -1,4 +1,5 @@
-{{define "base"}}<!DOCTYPE html>
+{{define "base"}}
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -10,7 +11,14 @@
     <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
     <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
     <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+    <style>
+        .table tbody tr.active,
+        .table.table-striped tbody tr.active {
+            background: #98b4f86b;
+        }
+    </style>
 </head>
+
 <body>
     <header>
         <!-- <h1><a href='/'>Snippetbox...</a></h1> -->

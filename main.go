@@ -25,12 +25,11 @@ func main() {
 
 	// Init Config
 	config.InitConfig(logger)
-	// logger.SetLevel(log.Level(viper.GetInt64("log_level")))
+	logger.SetLevel(log.Level(viper.GetInt64("log.level")))
 
 	// override things that don't work on mac
 	if runtime.GOOS == "darwin" {
 		logger.Info("Disable Mac features.")
-		viper.Set("https", false)
 		viper.Set("rfid-enabled", false)
 	}
 

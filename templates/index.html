@@ -17,6 +17,39 @@
 {{end}}
 
 {{define "main"}}
+<script>
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (!("NDEFReader" in window)) {
+            console.log("Web NFC is not available. Use Chrome on Android.");
+        }
+        try {
+            const ndef = new NDEFReader();
+            ndef.scan();
+            ndef.addEventListener("readingerror", () => {
+                console.log("Argh! Cannot read data from the NFC tag. Try another one?");
+            });
+            ndef.addEventListener("reading", ({ message, serialNumber }) => {
+                serialNumber = serialNumber.replaceAll(":", "")
+                console.log(`> Serial Number: ${serialNumber}`);
+                var r = document.querySelectorAll("tr");
+                for (let i = 0; i < r.length; i++) {
+                    var el  = r.length[i];
+                    if (el) {
+                        el.classList.remove("active");
+                    }
+                }
+                var el = document.getElementById(serialNumber)
+
+                el.scrollIntoView();
+                el.classList.add("active");
+                console.log(`> Records: (${message.records.length})`);
+            });
+        } catch (error) {
+            console.log("Argh! " + error);
+        }
+    });
+</script>
 <div class="container">
     <a class="btn btn-primary" href="/song/new"><i class="icon icon-plus"></i> New</a>
     <table class="table table-striped table-hover">
@@ -35,17 +68,18 @@
         </thead>
         <tbody>
             {{range $index, $s := .Songs}}
-            <tr>
+            <tr id="{{$s.RFID}}">
                 <!-- <td>{{$s.ID}}</td> -->
                 <!-- <td>{{$s.RFID}}</td> -->
                 <td><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
                 <td><a href="{{$s.URL}}" target="_blank">{{$s.Title}}</a></td>
                 <!-- <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td> -->
-                <td><a  class="btn btn-secondary" href="/song/{{$s.ID}}"><i class="icon icon-edit"></i></a></td>
+                <td><a class="btn btn-secondary" href="/song/{{$s.ID}}"><i class="icon icon-edit"></i></a></td>
                 <td>&nbsp;</td>
-                <td><a class="btn btn-primary" href="/song/{{$s.ID}}/play">▶️</a></td>
+                <td><a class="btn btn-primary" href="/song/{{$s.ID}}/play"><i class="icon icon-arrow-right"></i></a></td>
                 <td>&nbsp;</td>
-                <td><a class="icon icon-delete" href="/song/{{$s.ID}}/delete" onclick="return confirm('Are you sure?')">&nbsp;</a></td>
+                <td><a class="icon icon-delete" href="/song/{{$s.ID}}/delete"
+                        onclick="return confirm('Are you sure?')">&nbsp;</a></td>
             </tr>
             {{end}}
         </tbody>

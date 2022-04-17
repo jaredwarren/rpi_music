@@ -33,18 +33,19 @@ light or sound to show status
 
 keep alive when submitting new song
 
-css
+css, not loving spectre
 
 clean/delete logs, view logs in ui
 
 push build to pi, restart
 
-add link to "songs" to show player without playing
+edit page
+
 Documentation and cleanup
+
+add more to config page, clean up
+
 Playlist
-
-add config page
-
 player queue
 
 add systemd setup

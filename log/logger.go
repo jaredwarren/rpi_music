@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/fatih/color"
@@ -104,5 +105,5 @@ func (l *StdLogger) printStd(ll, msg string, fields ...Field) {
 		v = append(v, fmt.Sprintf("\n\t%s: %+v", cc(fv.Key), fv.Value))
 	}
 
-	fmt.Println(v...)
+	log.Println(v...)
 }
