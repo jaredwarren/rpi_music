@@ -9,3 +9,9 @@ type Song struct {
 	FileData  []byte // maybe store full file?
 	FilePath  string
 }
+
+type Playlist struct {
+	ID    string
+	Name  string
+	Songs []*Song
+}

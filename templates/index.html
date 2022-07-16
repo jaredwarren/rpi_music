@@ -3,17 +3,21 @@
 {{define "title"}}Song List{{end}}
 
 {{define "nav"}}
-<ul class="tab tab-block">
-    <li class="tab-item active">
-        <a href="#">Songs</a>
-    </li>
-    <li class="tab-item">
-        <a href="/player">Player</a>
-    </li>
-    <li class="tab-item">
-        <a href="/config">Config</a>
-    </li>
-</ul>
+<div class="container-fluid">
+    <ul class="nav nav-pills">
+        <li class="nav-item">
+            <a class="nav-link active" href="#"><span class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/player"><span class="material-symbols-outlined align-middle">
+                smart_display
+            </span><span class="align-middle">Player</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span> <span class="align-middle">Config</span></a>
+        </li>
+    </ul>
+</div>
 {{end}}
 
 {{define "main"}}
@@ -34,7 +38,7 @@
                 console.log(`> Serial Number: ${serialNumber}`);
                 var r = document.querySelectorAll("tr");
                 for (let i = 0; i < r.length; i++) {
-                    var el  = r.length[i];
+                    var el = r.length[i];
                     if (el) {
                         el.classList.remove("active");
                     }
@@ -51,7 +55,9 @@
     });
 </script>
 <div class="container">
-    <a class="btn btn-primary" href="/song/new"><i class="icon icon-plus"></i> New</a>
+    <a class="btn btn-primary" href="/song/new"><span class="material-symbols-outlined align-middle">
+        add_circle
+    </span> New</a>
     <table class="table table-striped table-hover">
         <thead>
             <tr>
@@ -61,7 +67,7 @@
                 <!-- <td>URL</td> -->
                 <td>Edit</td>
                 <td>&nbsp;</td>
-                <td>Delete</td>
+                <td>Play</td>
                 <td>&nbsp;</td>
                 <td>Delete</td>
             </tr>
@@ -71,15 +77,20 @@
             <tr id="{{$s.RFID}}">
                 <!-- <td>{{$s.ID}}</td> -->
                 <!-- <td>{{$s.RFID}}</td> -->
-                <td><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
+                <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
                 <td><a href="{{$s.URL}}" target="_blank">{{$s.Title}}</a></td>
                 <!-- <td><a href="{{$s.URL}}" target="_blank">{{$s.URL}}</a></td> -->
-                <td><a class="btn btn-secondary" href="/song/{{$s.ID}}"><i class="icon icon-edit"></i></a></td>
+                <td class="align-middle"><a class="btn btn-secondary" href="/song/{{$s.ID}}"><span class="material-symbols-outlined align-middle">
+                            edit
+                        </span></a></td>
                 <td>&nbsp;</td>
-                <td><a class="btn btn-primary" href="/song/{{$s.ID}}/play"><i class="icon icon-arrow-right"></i></a></td>
+                <td class="align-middle"><a class="btn btn-primary" href="/song/{{$s.ID}}/play"><span class="material-symbols-outlined align-middle">
+                            play_circle
+                        </span></a></td>
                 <td>&nbsp;</td>
-                <td><a class="icon icon-delete" href="/song/{{$s.ID}}/delete"
-                        onclick="return confirm('Are you sure?')">&nbsp;</a></td>
+                <td class="align-middle"><a class="btn btn-outline-danger" href="/song/{{$s.ID}}/delete" onclick="return confirm('Are you sure?')"><span
+                            class="material-symbols-outlined align-middle">delete
+                        </span></a></td>
             </tr>
             {{end}}
         </tbody>

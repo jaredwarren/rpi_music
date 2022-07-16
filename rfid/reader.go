@@ -2,15 +2,12 @@ package rfid
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/log"
-	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
-	"github.com/jaredwarren/rpi_music/server"
-	bolt "go.etcd.io/bbolt"
 	"periph.io/x/conn/v3/gpio"
 	"periph.io/x/conn/v3/gpio/gpioreg"
 	"periph.io/x/conn/v3/spi"
@@ -26,7 +23,7 @@ const (
 	irqPin   = "P1_18" // GPIO 24
 )
 
-func InitRFIDReader(db *bolt.DB, logger log.Logger) *RFIDReader {
+func InitRFIDReader(db db.DBer, logger log.Logger) *RFIDReader {
 	logger.Info("Initializing RFID")
 	cfg := DefaultConfig()
 	cfg.logger = logger
@@ -46,7 +43,7 @@ type Config struct {
 	IRQPin     string
 	IRQTimeout time.Duration
 	logger     log.Logger
-	db         *bolt.DB
+	db         db.DBer
 }
 
 type RFIDReader struct {
@@ -55,7 +52,7 @@ type RFIDReader struct {
 	IRQTimeout time.Duration
 	IsReady    bool
 	logger     log.Logger
-	db         *bolt.DB
+	db         db.DBer
 }
 
 func DefaultConfig() *Config {
@@ -126,19 +123,7 @@ func (r *RFIDReader) Start() {
 	go func() {
 		for {
 			id := r.ReadID()
-			var song *model.Song
-			err := r.db.View(func(tx *bolt.Tx) error {
-				b := tx.Bucket([]byte(server.SongBucket))
-				v := b.Get([]byte(id))
-				if v == nil {
-					return nil
-				}
-				err := json.Unmarshal(v, &song)
-				if err != nil {
-					return err
-				}
-				return nil
-			})
+			song, err := r.db.GetSong(id)
 			if err != nil {
 				r.logger.Error("error reading db", log.Error(err))
 			}

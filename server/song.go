@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
-	bolt "go.etcd.io/bbolt"
 )
 
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
@@ -21,40 +19,35 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var song *model.Song
-	s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		v := b.Get([]byte(key))
-		err := json.Unmarshal(v, &song)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	song, err := s.db.GetSong(key)
+	if err != nil {
+		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
+	if song == nil {
+		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
 
 	fullData := map[string]interface{}{
 		"Song": song,
 	}
+
+	// editSongFormTpl = template.Must(template.ParseFiles("templates/edit_song.html"))
+	files := []string{
+		"templates/edit_song.html",
+		"templates/layout.html",
+	}
+	editSongFormTpl = template.Must(template.ParseFiles(files...))
 	s.render(w, r, editSongFormTpl, fullData)
 }
 
 func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
-	songs := []*model.Song{}
-
-	s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var song *model.Song
-			err := json.Unmarshal(v, &song)
-			if err != nil {
-				return err
-			}
-			songs = append(songs, song)
-		}
-		return nil
-	})
-
+	songs, err := s.db.ListSongs()
+	if err != nil {
+		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
+		return
+	}
 	fullData := map[string]interface{}{
 		"Songs": songs,
 	}
@@ -76,7 +69,7 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	files := []string{
-		"templates/new_song.html",
+		"templates/edit_song.html",
 		"templates/layout.html",
 	}
 	// TODO:  maybe these would be better as objects
@@ -104,21 +97,22 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//
+	//
+	//
+
 	rfid = strings.ReplaceAll(rfid, ":", "")
 
 	overwrite := true // TODO: make param,
 	if !overwrite {
 		// check for duplicates
-		err = s.db.View(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(SongBucket))
-			v := b.Get([]byte(rfid))
-			if v != nil {
-				return fmt.Errorf("already exists")
-			}
-			return nil
-		})
+		exists, err := s.db.SongExists(rfid)
 		if err != nil {
 			s.httpError(w, fmt.Errorf("NewSongHandler|db.View|%w", err), http.StatusInternalServerError)
+			return
+		}
+		if exists {
+			// TODO: what to do here?
 			return
 		}
 	}
@@ -130,12 +124,12 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Download song
-	file, video, err := downloadVideo(url, s.logger)
+	file, video, err := s.downloader.DownloadVideo(url, s.logger)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
 		return
 	}
-	tmb, err := downloadThumb(video)
+	tmb, err := s.downloader.DownloadThumb(video)
 	if err != nil {
 		s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
 		// ignore err
@@ -146,19 +140,15 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	song.Title = video.Title
 
 	// 2. Store
-	err = s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-
-		buf, err := json.Marshal(song)
-		if err != nil {
-			return err
-		}
-		return b.Put([]byte(song.ID), buf)
-	})
+	err = s.db.UpdateSong(song)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("NewSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
+
+	//
+	//
+	//
 
 	http.Redirect(w, r, "/songs", 301)
 }
@@ -182,12 +172,13 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	rfid := r.PostForm.Get("rfid")
 	rfid = strings.ReplaceAll(rfid, ":", "")
 
+	//
+	//
+	//
+
 	// Delete if blank
 	if rfid == "" || url == "" {
-		err := s.db.Update(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(SongBucket))
-			return b.Delete([]byte(key)) // note: needs to "key"
-		})
+		err := s.db.DeleteSong(key)
 		if err != nil {
 			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 			return
@@ -202,12 +193,12 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// try to download file again
-	file, video, err := downloadVideo(url, s.logger)
+	file, video, err := s.downloader.DownloadVideo(url, s.logger)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
 		return
 	}
-	tmb, err := downloadThumb(video)
+	tmb, err := s.downloader.DownloadThumb(video)
 	if err != nil {
 		s.logger.Warn("UpdateSongHandler|downloadThumb", log.Error(err))
 		// ignore err
@@ -219,10 +210,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 
 	// delete old key if rfid id different then key
 	if key != rfid {
-		err := s.db.Update(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(SongBucket))
-			return b.Delete([]byte(key)) // note: needs to "key"
-		})
+		err := s.db.DeleteSong(key)
 		if err != nil {
 			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 			return
@@ -230,23 +218,15 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update otherwise
-	err = s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		v := b.Get([]byte(key)) // note: needs to "key"
-		if v == nil {
-			return fmt.Errorf("missing id")
-		}
-
-		buf, err := json.Marshal(song)
-		if err != nil {
-			return err
-		}
-		return b.Put([]byte(song.ID), buf)
-	})
+	err = s.db.UpdateSong(song)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
+
+	//
+	//
+	//
 
 	http.Redirect(w, r, "/songs", 301)
 }
@@ -258,10 +238,7 @@ func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("no key"), http.StatusBadRequest)
 		return
 	}
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		return b.Delete([]byte(key))
-	})
+	err := s.db.DeleteSong(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return

@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/jaredwarren/rpi_music/config"
+	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/jaredwarren/rpi_music/rfid"
 	"github.com/jaredwarren/rpi_music/server"
 	"github.com/spf13/viper"
-	bolt "go.etcd.io/bbolt"
 )
 
 const (
@@ -40,7 +40,7 @@ func main() {
 	}()
 
 	// Init DB
-	db, err := bolt.Open(DBPath, 0600, nil)
+	db, err := db.NewSongDB(DBPath)
 	if err != nil {
 		logger.Panic("error opening db", log.Error(err))
 	}

@@ -1,5 +1,5 @@
 .DS_Store
-my.db
+*.db
 localhost.crt
 localhost.csr
 localhost.key
@@ -7,3 +7,4 @@ song_files/*
 bin/
 thumb_files/*
 config/config.yml
+pplayer

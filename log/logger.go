@@ -107,3 +107,21 @@ func (l *StdLogger) printStd(ll, msg string, fields ...Field) {
 
 	log.Println(v...)
 }
+
+/*
+ NO OP
+*/
+
+func NewNoOpLogger() Logger {
+	return &NoOpLogger{}
+}
+
+type NoOpLogger struct{}
+
+func (l *NoOpLogger) Debug(string, ...Field) {}
+func (l *NoOpLogger) Info(string, ...Field)  {}
+func (l *NoOpLogger) Warn(string, ...Field)  {}
+func (l *NoOpLogger) Error(string, ...Field) {}
+func (l *NoOpLogger) Fatal(string, ...Field) {}
+func (l *NoOpLogger) Panic(string, ...Field) {}
+func (l *NoOpLogger) SetLevel(Level)         {}
