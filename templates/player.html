@@ -37,8 +37,12 @@
 </script>
 
 <h1>{{.Song.Title}}</h1>
-<button id="play_btn" class="btn btn-primary {{if .Player.Playing}}disabled{{end}}" onclick="play()">▶️ Play</button>
-<button id="stop_btn" class="btn btn-primary {{if not .Player.Playing}}disabled{{end}}" onclick="stop()">⏸️ Stop</button>
+<button id="play_btn" class="btn btn-primary {{if .Player.Playing}}disabled{{end}}" onclick="play()"><span class="material-symbols-outlined align-middle">
+    play_circle
+</span></button>
+<button id="stop_btn" class="btn btn-primary {{if not .Player.Playing}}disabled{{end}}" onclick="stop()"><span class="material-symbols-outlined align-middle">
+    pause_circle
+</span></button>
 
 <!--
     TODO: 

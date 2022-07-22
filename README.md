@@ -26,46 +26,33 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 
 
 # TODO #
-volume!
+[] volume!
  - `amixer -D pulse sset Master 5%+`?
-light or sound to show status
+[] light or sound to show status
  - `speaker-test -t sine -f 1000 -l 1`
-
-keep alive when submitting new song
-
-css, not loving spectre
-
-clean/delete logs, view logs in ui
-
-push build to pi, restart
-
-edit page
-
-Documentation and cleanup
-
-add more to config page, clean up
-
-Playlist
-player queue
-
-add systemd setup
-
+[] keep alive when submitting new song
+[] clean/delete logs, view logs in ui
+[] automate push build to pi, restart
+[] Documentation and cleanup
+[] add more to config page, clean up
+[] Playlist - create, edit, update local play list
+[] Playlist - download from youtube
+[] player queue, add mode to enqueue songs
 
 ## Case
-add stl's to repo
-
+[] add stl's to repo
+[] add USB port to allow power to speaker
 
 ## Nice to have
-logs and stats
-from phone check existing card, and other card management
-mobile friendly ui
-create player bar on all?
-Write to card url/name????
-push notification to android
-uninstall pulseaudio
-see if I can control led on rfid, or add another led to rpi
-
-re-do ui to be more like yt-music app
+[] logs and stats
+[] from phone check existing card, and other card management
+[] mobile friendly ui
+[] create player bar on all?
+[] Write to card url/name????
+[] push notification to android
+[] uninstall pulseaudio
+[] see if I can control led on rfid, or add another led to rpi
+[] re-do ui to be more like yt-music app
 
 
 
