@@ -50,7 +50,7 @@
         }
     });
 </script>
-<div class="container" style="width: 100%;">
+<div class="container">
     <a class="btn btn-primary" href="/song/new"><span class="material-symbols-outlined align-middle">
             add_circle
         </span> New</a>
@@ -60,7 +60,7 @@
                 <td>Thumb</td>
                 <td>Title</td>
                 <td>Edit</td>
-                <td>Play</td>
+                <!-- <td>Play</td> -->
                 <td>Print</td>
                 <td>Delete</td>
             </tr>
@@ -68,16 +68,16 @@
         <tbody>
             {{range $index, $s := .Songs}}
             <tr id="{{$s.RFID}}">
-                <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
-                <td><a href="{{$s.URL}}" target="_blank">{{$s.Title}}</a></td>
+                <td class="align-middle"><a href="{{$s.URL}}" target="_blank"><img src="{{$s.Thumbnail}}" style="height: 50px;"></a></td>
+                <td><a href="/song/{{$s.ID}}/play">{{$s.Title}}</a></td>
                 <td class="align-middle"><a class="btn btn-secondary" href="/song/{{$s.ID}}"><span
                             class="material-symbols-outlined align-middle">
                             edit
                         </span></a></td>
-                <td class="align-middle"><a class="btn btn-primary" href="/song/{{$s.ID}}/play"><span
+                <!-- <td class="align-middle"><a class="btn btn-primary" href="/song/{{$s.ID}}/play"><span
                             class="material-symbols-outlined align-middle">
                             play_circle
-                        </span></a></td>
+                        </span></a></td> -->
                 <td class="align-middle"><a class="btn btn-secondary" href="/song/{{$s.ID}}/print"><span
                             class="material-symbols-outlined align-middle">
                             print
