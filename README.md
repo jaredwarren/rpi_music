@@ -1,4 +1,4 @@
-
+# Raspberry Pi RFID Music Player
 
 
 
@@ -9,7 +9,6 @@
 #### dependances
 <!-- `sudo apt install alsa-utils` maybe to control volume -->
 `ffmpeg` required
-
 
 ### install
 
@@ -22,9 +21,6 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 
 
 
-
-
-
 # TODO #
 [] volume!
  - `amixer -D pulse sset Master 5%+`?
@@ -34,26 +30,29 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 [] clean/delete logs, view logs in ui
 [] automate push build to pi, restart
 [] Documentation and cleanup
-[] add more to config page, clean up
+[] add more to config page, like...
+
+## Playlist
 [] Playlist - create, edit, update local play list
 [] Playlist - download from youtube
 [] player queue, add mode to enqueue songs
 
 ## Case
 [] add stl's to repo
-[] add USB port to allow power to speaker
+[] add USB port to stl to allow power to speaker
 
 ## Nice to have
 [] logs and stats
-[] from phone check existing card, and other card management
-[] mobile friendly ui
-[] create player bar on all?
-[] Write to card url/name????
+ - add page to view logs/stats
+[] Write url to card
+ - wouldn't need a db.
 [] push notification to android
-[] uninstall pulseaudio
+ - push to see what's playing, etc.
 [] see if I can control led on rfid, or add another led to rpi
-[] re-do ui to be more like yt-music app
 
+## Player on phone
+[] create player bar on all?
+[] re-do ui to be more like yt-music app
 
 
 # Helpful links

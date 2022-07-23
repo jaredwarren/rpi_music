@@ -1,0 +1,51 @@
+{{template "base" .}}
+
+{{define "title"}}Print {{.Song.Title}}{{end}}
+
+{{define "nav"}}
+<div class="container-fluid">
+    <ul class="nav nav-pills">
+        <li class="nav-item">
+            <a class="nav-link" href="/songs"><span
+                    class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/player"><span class="material-symbols-outlined align-middle">
+                    smart_display
+                </span><span class="align-middle">Player</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span>
+                <span class="align-middle">Config</span></a>
+        </li>
+    </ul>
+</div>
+{{end}}
+
+{{define "main"}}
+<style>
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable, #printable * {
+    visibility: visible;
+  }
+  #printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+}
+</style>
+
+<h1>{{.Song.Title}}</h1>
+<div id="printable">
+    <img src="/{{.Song.Thumbnail}}" style="display: block;
+  max-width:3.35in;
+  max-height:2.1in;
+  width: auto;
+  height: auto;">
+</div>
+
+{{end}}

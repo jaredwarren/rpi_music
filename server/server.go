@@ -65,6 +65,8 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	r.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
 	r.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
 
+	r.HandleFunc("/song/{song_id}/print", s.PrintHandler)
+
 	r.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
 	r.HandleFunc("/config", s.ConfigHandler).Methods("POST")
 

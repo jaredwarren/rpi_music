@@ -68,6 +68,7 @@
                 <td>Edit</td>
                 <td>&nbsp;</td>
                 <td>Play</td>
+                <td>Print</td>
                 <td>&nbsp;</td>
                 <td>Delete</td>
             </tr>
@@ -83,6 +84,10 @@
                 <td>&nbsp;</td>
                 <td class="align-middle"><a class="btn btn-primary" href="/song/{{$s.ID}}/play"><span class="material-symbols-outlined align-middle">
                             play_circle
+                        </span></a></td>
+                <td class="align-middle"><a class="btn btn-secondary" href="/song/{{$s.ID}}/print"><span
+                            class="material-symbols-outlined align-middle">
+                            print
                         </span></a></td>
                 <td>&nbsp;</td>
                 <td class="align-middle"><a class="btn btn-outline-danger" href="/song/{{$s.ID}}/delete" onclick="return confirm('Are you sure?')"><span
