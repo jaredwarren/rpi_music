@@ -225,10 +225,10 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/player", 301)
+	http.Redirect(w, r, "/songs", 301)
 }
 
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
 	player.Stop()
-	http.Redirect(w, r, "/player", 301)
+	http.Redirect(w, r, "/songs", 301)
 }

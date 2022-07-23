@@ -28,6 +28,13 @@
         .table.table-striped tbody tr.active {
             background: #98b4f86b;
         }
+
+        .nav{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
     </style>
 </head>
 
@@ -43,6 +50,7 @@
     <main>
         {{template "main" .}}
     </main>
+    {{template "player" .}}
 </body>
 
 </html>

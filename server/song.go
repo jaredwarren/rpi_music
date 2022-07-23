@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
+	"github.com/jaredwarren/rpi_music/player"
 )
 
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
@@ -43,13 +44,18 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
+	cp := player.GetPlayer()
+	song := player.GetPlaying()
+
 	songs, err := s.db.ListSongs()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return
 	}
 	fullData := map[string]interface{}{
-		"Songs": songs,
+		"Songs":       songs,
+		"CurrentSong": song,
+		"Player":      cp,
 	}
 
 	// for now
@@ -97,13 +103,9 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//
-	//
-	//
-
 	rfid = strings.ReplaceAll(rfid, ":", "")
 
-	overwrite := true // TODO: make param,
+	overwrite := true // TODO: make param, or config
 	if !overwrite {
 		// check for duplicates
 		exists, err := s.db.SongExists(rfid)
@@ -146,10 +148,6 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//
-	//
-	//
-
 	http.Redirect(w, r, "/songs", 301)
 }
 
@@ -171,10 +169,6 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	url := r.PostForm.Get("url")
 	rfid := r.PostForm.Get("rfid")
 	rfid = strings.ReplaceAll(rfid, ":", "")
-
-	//
-	//
-	//
 
 	// Delete if blank
 	if rfid == "" || url == "" {
@@ -223,10 +217,6 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
-
-	//
-	//
-	//
 
 	http.Redirect(w, r, "/songs", 301)
 }
