@@ -40,6 +40,12 @@
 </style>
 
 <h1>{{.Song.Title}}</h1>
+<button class="btn btn-primary" onclick="window.print();return false;">
+    <span class="material-symbols-outlined align-middle">
+        print
+    </span>
+</button>
+<hr>
 <div id="printable">
     <img src="/{{.Song.Thumbnail}}" style="display: block;
   max-width:3.35in;
