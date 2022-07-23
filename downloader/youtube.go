@@ -16,11 +16,17 @@ import (
 )
 
 type Downloader interface {
+	GetVideo(videoID string) (*youtube.Video, error)
 	DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error)
 	DownloadThumb(video *youtube.Video) (string, error)
 }
 
 type YoutubeDownloader struct{}
+
+func (d *YoutubeDownloader) GetVideo(videoID string) (*youtube.Video, error) {
+	client := youtube.Client{}
+	return client.GetVideo(videoID)
+}
 
 func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error) {
 	client := youtube.Client{}
