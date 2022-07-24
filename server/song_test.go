@@ -19,13 +19,11 @@ import (
 )
 
 func TestListSongHandler(t *testing.T) {
-	initDB()
-	// Init DB
-	db, err := db.NewSongDB("test.db")
-	assert.NoError(t, err)
+	db := initDB(t)
 
-	err = db.UpdateSong(&model.Song{
-		ID: "test_song",
+	err := db.UpdateSong(&model.Song{
+		ID:   "test_song",
+		RFID: "test_song_rfid",
 	})
 	assert.NoError(t, err)
 
@@ -60,7 +58,7 @@ func TestListSongHandler(t *testing.T) {
 		data, err := ioutil.ReadAll(res.Body)
 		assert.NoError(t, err)
 
-		assert.Contains(t, string(data), "/song/test_song")
+		assert.Contains(t, string(data), `test_song_rfid`)
 	}
 
 	{ // test Edit song form
@@ -96,11 +94,8 @@ func TestListSongHandler(t *testing.T) {
 		res := w.Result()
 		assert.Equal(t, http.StatusMovedPermanently, res.StatusCode)
 		defer res.Body.Close()
-		// data, err := ioutil.ReadAll(res.Body)
 		assert.NoError(t, err)
 
-		// assert.Contains(t, string(data), "newrfid")
-		// TODO: test that value was updated
 		{ // that that list songs has new rfid
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			w := httptest.NewRecorder()
@@ -117,7 +112,12 @@ func TestListSongHandler(t *testing.T) {
 	}
 }
 
-func initDB() {
+func initDB(t *testing.T) db.DBer {
 	os.Chdir("/Users/jaredwarren/go/src/github.com/jaredwarren/rpi_music")
 	os.Remove("test.db")
+
+	// Init DB
+	db, err := db.NewSongDB("test.db")
+	assert.NoError(t, err)
+	return db
 }

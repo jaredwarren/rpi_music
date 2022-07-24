@@ -13,9 +13,7 @@ import (
 func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("ConfigFormHandler")
 
-	song := &model.Song{
-		ID: "new",
-	}
+	song := model.NewSong()
 
 	fullData := map[string]interface{}{
 		"Song": song,

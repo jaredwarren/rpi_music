@@ -70,9 +70,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]interface{}{
-		"Song": &model.Song{
-			ID: "new",
-		},
+		"Song": model.NewSong(),
 	}
 	files := []string{
 		"templates/edit_song.html",

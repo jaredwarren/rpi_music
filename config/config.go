@@ -14,6 +14,7 @@ const (
 	ConfigPath = "./config"
 )
 
+// InitConfig load config file, write defaults if no file exists.
 func InitConfig(logger log.Logger) {
 	viper.SetConfigName(ConfigFile) // name of config file (without extension)
 	viper.SetConfigType("yaml")
@@ -27,6 +28,8 @@ func InitConfig(logger log.Logger) {
 	}
 }
 
+// writeDefaultConfig Set then write config file.
+// should only run first time app is launched and no config file is found
 func writeDefaultConfig(logger log.Logger) {
 	fp := filepath.Join(ConfigPath, fmt.Sprintf("%s.yml", ConfigFile))
 	logger.Info("writing default config", log.Any("file_path", fp))
@@ -49,6 +52,7 @@ func writeDefaultConfig(logger log.Logger) {
 	}
 }
 
+// SetDefaults sets hard-coded default values
 func SetDefaults() {
 	viper.Set("https", true)
 	viper.Set("rfid-enabled", true)

@@ -1,5 +1,9 @@
 package model
 
+const (
+	NewSongID = "new"
+)
+
 type Song struct {
 	ID        string
 	Thumbnail string // path to thumb
@@ -8,6 +12,12 @@ type Song struct {
 	URL       string
 	FileData  []byte // maybe store full file?
 	FilePath  string
+}
+
+func NewSong() *Song {
+	return &Song{
+		ID: NewSongID,
+	}
 }
 
 type Playlist struct {

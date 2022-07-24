@@ -14,6 +14,7 @@ import (
 	"github.com/jaredwarren/rpi_music/downloader"
 	"github.com/jaredwarren/rpi_music/env"
 	"github.com/jaredwarren/rpi_music/log"
+	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/spf13/viper"
 )
@@ -50,10 +51,10 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// list songs
 	r.HandleFunc("/songs", s.ListSongHandler).Methods("GET")
 	// new song form
-	r.HandleFunc("/song/new", s.NewSongFormHandler).Methods("GET")
+	r.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongFormHandler).Methods("GET")
 	// submit new song
 	r.HandleFunc("/song", s.NewSongHandler).Methods("POST")
-	r.HandleFunc("/song/new", s.NewSongHandler).Methods("POST")
+	r.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongHandler).Methods("POST")
 	// Edit Song Form
 	r.HandleFunc("/song/{song_id}", s.EditSongFormHandler).Methods("GET")
 	// new link
