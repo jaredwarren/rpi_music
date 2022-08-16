@@ -51,6 +51,11 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 - [ ] create player bar on all?
 - [ ] re-do ui to be more like yt-music app
 
+## Nit
+- [ ] add "downloader" config
+   - song/thumb locations
+- [ ] add icon to see which songs have a "real" rfid card
+
 
 # Helpful links
 
@@ -66,3 +71,9 @@ https://fonts.google.com/icons
 
 ### systemd logs
 `journalctl -u player.service`
+
+
+## Update YTDL
+`go get -u all`
+
+
