@@ -18,6 +18,8 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 
 
 # TODO #
+- [ ] see if possible to play without downloading as a backup
+- [ ] find a better file convention, maybe use youtube video id. map rfid <-> video id
 - [ ] create system for assigning cards without phone
 - [ ] volume control!
   - `amixer -D pulse sset Master 5%+`?

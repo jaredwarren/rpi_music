@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/jaredwarren/rpi_music/log"
@@ -24,7 +25,9 @@ type Downloader interface {
 type YoutubeDownloader struct{}
 
 func (d *YoutubeDownloader) GetVideo(videoID string) (*youtube.Video, error) {
-	client := youtube.Client{}
+	client := youtube.Client{
+		Debug: true,
+	}
 	return client.GetVideo(videoID)
 }
 
@@ -36,7 +39,11 @@ func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (st
 	}
 
 	formats := video.Formats.WithAudioChannels() // only get videos with audio
-	formats.Sort()                               // I think this sorts best > worst
+
+	// I think this sorts best > worst
+	sort.Slice(formats, func(i, j int) bool {
+		return formats[i].AverageBitrate > formats[j].AverageBitrate
+	})
 
 	bestFormat := formats[0]
 	ext := getExt(bestFormat.MimeType)
@@ -48,6 +55,7 @@ func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (st
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
 		stream, _, err := client.GetStream(video, &bestFormat)
 		if err != nil {
+			logger.Error("GetStream error", log.Any("title", video.Title), log.Error(err), log.Any("format", bestFormat))
 			return fileName, video, err
 		}
 

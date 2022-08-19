@@ -66,12 +66,15 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	r.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
 	r.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
 
+	r.HandleFunc("/song/{song_id}/play_video", s.PlayVideoHandler)
+
 	r.HandleFunc("/song/{song_id}/print", s.PrintHandler)
 
 	r.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
 	r.HandleFunc("/config", s.ConfigHandler).Methods("POST")
 
 	r.HandleFunc("/player", s.PlayerHandler).Methods("GET")
+
 	// TODO:play locally or remotely
 	// remote media controls (WS?) (play, pause, volume +/-)
 
@@ -164,9 +167,10 @@ type Server struct {
 
 func New(db db.DBer, l log.Logger) *Server {
 	return &Server{
-		db:         db,
-		logger:     l,
-		downloader: &downloader.YoutubeDownloader{},
+		db:     db,
+		logger: l,
+		// downloader: &downloader.YoutubeDownloader{}, // TODO: get this from config
+		downloader: &downloader.YoutubeDLDownloader{}, // TODO: get this from config
 	}
 }
 

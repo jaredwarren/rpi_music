@@ -1,0 +1,27 @@
+{{template "base" .}}
+
+{{define "title"}}{{.Song.Title}}{{end}}
+
+{{define "nav"}}
+<div class="container-fluid">
+    <ul class="nav nav-pills">
+        <li class="nav-item">
+            <a class="nav-link" href="/songs"><span
+                    class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span>
+                <span class="align-middle"></span></a>
+        </li>
+    </ul>
+</div>
+{{end}}
+
+{{define "main"}}
+<h1>{{.Song.Title}}</h1>
+<div class="container">
+    <video poster="/{{.Song.Thumbnail}}" width="470" height="255" controls src="/{{.Song.FilePath}}"></video>
+</div>
+{{end}}
+
+{{define "player"}}{{end}}

@@ -233,3 +233,36 @@ func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/songs", 301)
 }
+
+func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
+	s.logger.Info("PlayVideoHandler")
+
+	vars := mux.Vars(r)
+	key := vars["song_id"]
+	if key == "" {
+		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
+		return
+	}
+
+	song, err := s.db.GetSong(key)
+	if err != nil {
+		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
+	if song == nil {
+		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
+
+	fullData := map[string]interface{}{
+		"Song": song,
+	}
+
+	files := []string{
+		"templates/play_video.html",
+		"templates/layout.html",
+	}
+	// TODO:  maybe these would be better as objects
+	tpl := template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles(files...))
+	s.render(w, r, tpl, fullData)
+}
