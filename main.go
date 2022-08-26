@@ -55,8 +55,8 @@ func main() {
 	// Init Server
 	htmlServer := server.StartHTTPServer(&server.Config{
 		Host:         viper.GetString("host"),
-		ReadTimeout:  35 * time.Second,
-		WriteTimeout: 35 * time.Second,
+		ReadTimeout:  350 * time.Second,
+		WriteTimeout: 350 * time.Second,
 		Db:           db,
 		Logger:       logger,
 	})

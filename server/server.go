@@ -46,41 +46,48 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// Setup Handlers
 	r := mux.NewRouter()
+	r.Use(mux.CORSMethodMiddleware(r))
 	r.Use(s.loggingMiddleware)
+	// .Methods(http.MethodGet, http.MethodPut, http.MethodPatch, http.MethodOptions)
+	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
+	r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
+	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet, http.MethodOptions)
+	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
+
+	sub := r.PathPrefix("/").Subrouter()
+	sub.Use(s.requireLoginMiddleware)
 
 	// list songs
-	r.HandleFunc("/songs", s.ListSongHandler).Methods("GET")
+	sub.HandleFunc("/", s.ListSongHandler).Methods("GET")
+	sub.HandleFunc("/songs", s.ListSongHandler).Methods("GET")
 	// new song form
-	r.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongFormHandler).Methods("GET")
+	sub.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongFormHandler).Methods("GET")
 	// submit new song
-	r.HandleFunc("/song", s.NewSongHandler).Methods("POST")
-	r.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongHandler).Methods("POST")
+	sub.HandleFunc("/song", s.NewSongHandler).Methods("POST")
+	sub.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongHandler).Methods("POST")
 	// Edit Song Form
-	r.HandleFunc("/song/{song_id}", s.EditSongFormHandler).Methods("GET")
+	sub.HandleFunc("/song/{song_id}", s.EditSongFormHandler).Methods("GET")
 	// new link
-	r.HandleFunc("/song/{song_id}", s.UpdateSongHandler).Methods("PUT", "POST")
+	sub.HandleFunc("/song/{song_id}", s.UpdateSongHandler).Methods("PUT", "POST")
 	// delete song
-	r.HandleFunc("/song/{song_id}", s.DeleteSongHandler).Methods("DELETE")
-	r.HandleFunc("/song/{song_id}/delete", s.DeleteSongHandler).Methods("GET") // temp unitl I can get a better UI
+	sub.HandleFunc("/song/{song_id}", s.DeleteSongHandler).Methods("DELETE")
+	sub.HandleFunc("/song/{song_id}/delete", s.DeleteSongHandler).Methods("GET") // temp unitl I can get a better UI
 
-	r.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
-	r.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
+	sub.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
+	sub.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
 
-	r.HandleFunc("/song/{song_id}/play_video", s.PlayVideoHandler)
+	sub.HandleFunc("/song/{song_id}/play_video", s.PlayVideoHandler)
 
-	r.HandleFunc("/song/{song_id}/print", s.PrintHandler)
+	sub.HandleFunc("/song/{song_id}/print", s.PrintHandler)
 
-	r.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
-	r.HandleFunc("/config", s.ConfigHandler).Methods("POST")
+	sub.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
+	sub.HandleFunc("/config", s.ConfigHandler).Methods("POST")
 
-	r.HandleFunc("/player", s.PlayerHandler).Methods("GET")
+	sub.HandleFunc("/player", s.PlayerHandler).Methods("GET")
 
-	// TODO:play locally or remotely
-	// remote media controls (WS?) (play, pause, volume +/-)
-
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
-	r.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir(viper.GetString("player.song_root")))))
-	r.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir(viper.GetString("player.thumb_root")))))
+	sub.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	sub.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir(viper.GetString("player.song_root")))))
+	sub.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir(viper.GetString("player.thumb_root")))))
 
 	// Create the HTML Server
 	htmlServer := HTMLServer{

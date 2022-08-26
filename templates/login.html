@@ -1,0 +1,32 @@
+{{template "base" .}}
+
+{{define "title"}}Song List{{end}}
+
+{{define "nav"}}
+{{end}}
+
+{{define "main"}}
+<div class="container h-100">
+    <div class="card row h-100 justify-content-center align-items-center" style="width: 18rem;">
+        <div class="card-body">
+            <form name="login" action="/login" method="post">
+                <div class="form-group">
+                    <label for="usernameInput">Username</label>
+                    <input type="text" class="form-control" id="usernameInput" aria-describedby="emailHelp"
+                        placeholder="Username" name="username">
+                    <!-- <small id="emailHelp" class="form-text text-muted">We'll never share your email with anyone else.</small> -->
+                </div>
+                <div class="form-group">
+                    <label for="passwordInput">Password</label>
+                    <input type="password" class="form-control" id="passwordInput" placeholder="Password" name="password">
+                </div>
+                <hr>
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </form>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "player"}}
+{{end}}

@@ -92,14 +92,33 @@
 {{define "player"}}
 {{if .CurrentSong}}
 <script>
+    var socket = new WebSocket("wss://localhost:8000/echo");
+
+    socket.onopen = function () {
+        console.log("Status: Connected")
+    };
+
+    socket.onmessage = function (e) {
+        switch (e.data) {
+            case "play":
+                stop_btn.removeAttribute("hidden", null)
+                break;
+            case "pause":
+                play_btn.removeAttribute("hidden", null)
+                break;
+            default:
+                break;
+        }
+        console.log(e.data)
+    };
+</script>
+<script>
     function play() {
-        fetch('/song/{{.CurrentSong.ID}}/play')
+        socket.send("play");
         play_btn.setAttribute("hidden", null)
-        stop_btn.removeAttribute("hidden", null)
     }
     function stop() {
-        fetch('/song/{{.CurrentSong.ID}}/stop')
-        play_btn.removeAttribute("hidden", null)
+        socket.send("pause");
         stop_btn.setAttribute("hidden", null)
     }
 </script>

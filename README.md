@@ -15,7 +15,10 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 `openssl req  -new  -newkey rsa:2048  -nodes  -keyout localhost.key  -out localhost.csr`
 `openssl  x509  -req  -days 365  -in localhost.csr  -signkey localhost.key  -out localhost.crt`
 
+## 3. Setup systemd
+copy player.service to: `/lib/systemd/system/player.service`
 
+----------------------------------------
 
 # TODO #
 - [ ] see if possible to play without downloading as a backup
@@ -30,6 +33,7 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 - [ ] automate push build to pi, restart
 - [ ] Documentation and cleanup
 - [ ] add more to config page, like...
+- [ ] fix thumbnail's loading slowly
  
 ## Playlist
 - [ ] Playlist - create, edit, update local play list
@@ -37,7 +41,7 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 - [ ] player queue, add mode to enqueue songs
  
 ## Case
-- [ ] add stl's to repo
+- [ ] add stl's to repo (move to separate repo?)
 - [ ] add USB port to stl to allow power to speaker
  
 ## Nice to have
@@ -48,6 +52,7 @@ from - https://medium.com/rungo/secure-https-servers-in-go-a783008b36da
 - [ ] push notification to android
   - push to see what's playing, etc.
 - [ ] see if I can control led on rfid, or add another led to rpi
+- [ ] remote media controls (WS?) (play, pause, volume +/-), but websockets don't work with self-signed certificates :(
  
 ## Player on phone
 - [ ] create player bar on all?
@@ -73,6 +78,13 @@ https://fonts.google.com/icons
 
 ### systemd logs
 `journalctl -u player.service`
+
+### Restart service?
+`systemctl restart player.service`
+
+
+
+
 
 
 ## Update YTDL
