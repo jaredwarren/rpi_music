@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
-	"github.com/jaredwarren/rpi_music/env"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
@@ -44,47 +45,58 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// init server
 	s := New(cfg.Db, cfg.Logger)
 
+	CSRF := csrf.Protect(
+		[]byte(os.Getenv("CSRF_KEY")),
+		// instruct the browser to never send cookies during cross site requests
+		csrf.SameSite(csrf.SameSiteStrictMode),
+	)
+
 	// Setup Handlers
 	r := mux.NewRouter()
+	r.Use(CSRF)
 	r.Use(mux.CORSMethodMiddleware(r))
 	r.Use(s.loggingMiddleware)
-	// .Methods(http.MethodGet, http.MethodPut, http.MethodPatch, http.MethodOptions)
+
+	// Public Methods
 	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
 	r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
 	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet, http.MethodOptions)
 	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
+	// login-required methods
 	sub := r.PathPrefix("/").Subrouter()
 	sub.Use(s.requireLoginMiddleware)
 
 	// list songs
-	sub.HandleFunc("/", s.ListSongHandler).Methods("GET")
-	sub.HandleFunc("/songs", s.ListSongHandler).Methods("GET")
-	// new song form
-	sub.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongFormHandler).Methods("GET")
-	// submit new song
-	sub.HandleFunc("/song", s.NewSongHandler).Methods("POST")
-	sub.HandleFunc(fmt.Sprintf("/song/%s", model.NewSongID), s.NewSongHandler).Methods("POST")
-	// Edit Song Form
-	sub.HandleFunc("/song/{song_id}", s.EditSongFormHandler).Methods("GET")
-	// new link
-	sub.HandleFunc("/song/{song_id}", s.UpdateSongHandler).Methods("PUT", "POST")
-	// delete song
-	sub.HandleFunc("/song/{song_id}", s.DeleteSongHandler).Methods("DELETE")
-	sub.HandleFunc("/song/{song_id}/delete", s.DeleteSongHandler).Methods("GET") // temp unitl I can get a better UI
+	sub.HandleFunc("/", s.ListSongHandler).Methods(http.MethodGet)
+	sub.HandleFunc("/songs", s.ListSongHandler).Methods(http.MethodGet)
 
-	sub.HandleFunc("/song/{song_id}/play", s.PlaySongHandler)
-	sub.HandleFunc("/song/{song_id}/stop", s.StopSongHandler)
+	// Song
+	ssub := sub.PathPrefix("/song").Subrouter()
+	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongFormHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("", s.NewSongHandler).Methods(http.MethodPost)
+	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)
+	ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
+	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
+	sub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet) // temp unitl I can get a better UI
+	ssub.HandleFunc("/{song_id}/play", s.PlaySongHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/stop", s.StopSongHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/play_video", s.PlayVideoHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/print", s.PrintHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/json", s.JSONHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/json", s.JSONHandler).Methods(http.MethodGet)
 
-	sub.HandleFunc("/song/{song_id}/play_video", s.PlayVideoHandler)
+	// Config Endpoints
+	csub := sub.PathPrefix("/config").Subrouter()
+	csub.HandleFunc("", s.ConfigFormHandler).Methods(http.MethodGet)
+	csub.HandleFunc("", s.ConfigHandler).Methods(http.MethodPost)
 
-	sub.HandleFunc("/song/{song_id}/print", s.PrintHandler)
+	// Player Endpoints
+	psub := sub.PathPrefix("/player").Subrouter()
+	psub.HandleFunc("/", s.PlayerHandler).Methods(http.MethodGet)
 
-	sub.HandleFunc("/config", s.ConfigFormHandler).Methods("GET")
-	sub.HandleFunc("/config", s.ConfigHandler).Methods("POST")
-
-	sub.HandleFunc("/player", s.PlayerHandler).Methods("GET")
-
+	// Static files
 	sub.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	sub.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir(viper.GetString("player.song_root")))))
 	sub.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir(viper.GetString("player.thumb_root")))))
@@ -147,23 +159,6 @@ func (htmlServer *HTMLServer) StopHTTPServer() error {
 	htmlServer.wg.Wait()
 	htmlServer.logger.Info("HTTP service stopped")
 	return nil
-}
-
-// Templates
-var (
-	homepageTpl     *template.Template
-	editSongFormTpl *template.Template
-	newSongFormTpl  *template.Template
-	playerTpl       *template.Template
-)
-
-func init() {
-	if !env.IsTest() {
-		homepageTpl = template.Must(template.ParseFiles("templates/index.html"))
-		newSongFormTpl = template.Must(template.ParseFiles("templates/edit_song.html"))
-		editSongFormTpl = template.Must(template.ParseFiles("templates/edit_song.html"))
-		playerTpl = template.Must(template.ParseFiles("templates/player.html"))
-	}
 }
 
 type Server struct {

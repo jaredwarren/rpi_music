@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/gorilla/csrf"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/spf13/viper"
@@ -16,7 +17,8 @@ func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 	song := model.NewSong()
 
 	fullData := map[string]interface{}{
-		"Song": song,
+		"Song":           song,
+		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 
 	files := []string{

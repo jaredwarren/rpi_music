@@ -19,6 +19,7 @@
 
 {{define "main"}}
 <form action="/config" method="post">
+    {{ .csrfField }}
     <div class="form-group">
         <label class="form-switch">
             {{ConfigBool "beep"}}

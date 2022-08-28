@@ -1,16 +1,46 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 )
+
+// JSONHandler
+func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	vars := mux.Vars(r)
+	key := vars["song_id"]
+	if key == "" {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "song_id required",
+		})
+		return
+	}
+
+	song, err := s.db.GetSong(key)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+	if song == nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "song not found",
+		})
+		return
+	}
+	json.NewEncoder(w).Encode(song)
+}
 
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -31,15 +61,15 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullData := map[string]interface{}{
-		"Song": song,
+		"Song":           song,
+		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 
-	// editSongFormTpl = template.Must(template.ParseFiles("templates/edit_song.html"))
 	files := []string{
 		"templates/edit_song.html",
 		"templates/layout.html",
 	}
-	editSongFormTpl = template.Must(template.ParseFiles(files...))
+	editSongFormTpl := template.Must(template.ParseFiles(files...))
 	s.render(w, r, editSongFormTpl, fullData)
 }
 
@@ -63,7 +93,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 		"templates/index.html",
 		"templates/layout.html",
 	}
-	homepageTpl = template.Must(template.ParseFiles(files...))
+	homepageTpl := template.Must(template.ParseFiles(files...))
 
 	s.render(w, r, homepageTpl, fullData)
 }

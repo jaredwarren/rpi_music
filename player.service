@@ -4,6 +4,8 @@
 
  [Service]
  Type=idle
+ Environment="USERNANME=foo"
+ Environment="PASSWORD=bar"
  WorkingDirectory=/home/pi/go/src/github.com/jaredwarren/rpi_music
  ExecStart=/home/pi/go/src/github.com/jaredwarren/rpi_music/pplayer > /home/pi/sample.log 2>&1
 

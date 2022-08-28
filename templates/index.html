@@ -49,6 +49,37 @@
             console.log("Argh! " + error);
         }
     });
+    var myModal;
+    window.addEventListener("DOMContentLoaded", async () => {
+        myModal = new bootstrap.Modal(document.getElementById("exampleModal"), {});
+    });
+
+    function showSongInfo(e) {
+        if (e.dataset.whatever) {
+            console.log(e.dataset.whatever);
+            fetch("/song/" + e.dataset.whatever + "/json") // Call the fetch function passing the url of the API as a parameter
+                .then(res => res.json())
+                .then(function (res) {
+                    console.log(res)
+                    document.getElementById("exampleModalLabel").innerHTML = res.Title
+                    document.getElementById("exampleModalVideo").setAttribute("poster", "/" + res.Thumbnail);
+                    document.getElementById("exampleModalVideo").setAttribute("src", "/" + res.FilePath);
+                    document.getElementById("exampleModalRFID").setAttribute("value", res.RFID);
+                    document.getElementById("exampleModalYoutube").setAttribute("value", res.URL);
+                    document.getElementById("exampleModalYoutubeLink").setAttribute("href", res.URL);
+                    document.getElementById("exampleModalEditLink").setAttribute("href", "/song/" + res.ID);
+                    document.getElementById("exampleModalPrintLink").setAttribute("href", "/song/" + res.ID + "/print");
+                    document.getElementById("exampleModalPlayLink").setAttribute("href", "/song/" + res.ID + "/play");
+                    document.getElementById("exampleModalDeleteLink").setAttribute("href", "/song/" + res.ID + "/delete");
+                    myModal.show();
+                })
+                .catch(function (e) {
+                    alert("error");
+                    console.error(e);
+                    // This is where you run code if the server returns any errors
+                });
+        }
+    }
 </script>
 <div class="container">
     <a class="btn btn-primary" href="/song/new"><span class="material-symbols-outlined align-middle">
@@ -59,68 +90,123 @@
             <tr>
                 <td>Thumb</td>
                 <td>Title</td>
-                <td>Edit</td>
-                <td>Print</td>
                 <td>Delete</td>
             </tr>
         </thead>
         <tbody>
             {{range $index, $s := .Songs}}
-            <tr id="{{$s.RFID}}">
-                <td class="align-middle"><a href="/song/{{$s.ID}}/play_video"><img src="{{$s.Thumbnail}}"
-                            style="height: 50px;"></a></td>
-                <td><a href="/song/{{$s.ID}}/play">{{$s.Title}}</a></td>
-                <td class="align-middle"><a class="btn btn-secondary" href="/song/{{$s.ID}}"><span
-                            class="material-symbols-outlined align-middle">
-                            edit
-                        </span></a></td>
-                <td class="align-middle"><a class="btn btn-secondary" href="/song/{{$s.ID}}/print"><span
-                            class="material-symbols-outlined align-middle">
-                            print
-                        </span></a></td>
-                <td class="align-middle"><a class="btn btn-outline-danger" href="/song/{{$s.ID}}/delete"
-                        onclick="return confirm('Are you sure?')"><span
-                            class="material-symbols-outlined align-middle">delete
+            <tr id="{{$s.RFID}}" onclick="showSongInfo(this)" data-whatever="{{$s.ID}}">
+                <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
+                <td>{{$s.Title}}</td>
+                <td class="align-middle"><a class="btn btn-outline-primary" href="/song/{{$s.ID}}/play"><span
+                            class="material-symbols-outlined align-middle">play_circle
                         </span></a></td>
             </tr>
             {{end}}
         </tbody>
     </table>
 </div>
+<div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">New message</h5>
+                <button type="button" aria-label="Close" class="btn btn-outline-secondary btn-close"
+                    data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <video id="exampleModalVideo" poster="" style="width: 100%;" height="255" controls src=""></video>
+                <form>
+                    <div class="form-group">
+                        <div class="input-group mb-3">
+                            <input id="exampleModalRFID" type="text" class="form-control"
+                                placeholder="Recipient's username" aria-label="Recipient's username"
+                                aria-describedby="button-addon2" disabled>
+                            <button class="btn btn-outline-secondary" type="button" id="button-addon2"><span
+                                    class="material-symbols-outlined align-middle">
+                                    content_copy
+                                </span></button>
+                        </div>
+                        <div class="input-group mb-3">
+                            <!-- maybe make this editable and add save -->
+                            <input id="exampleModalYoutube" type="text" class="form-control"
+                                placeholder="Recipient's username" aria-label="Recipient's username"
+                                aria-describedby="exampleModalYoutubeLink" disabled>
+                            <button class="btn btn-outline-secondary" type="button"><span
+                                    class="material-symbols-outlined align-middle">
+                                    content_copy
+                                </span></button>
+                            <a target="_blank" class="btn btn-primary" type="button" id="exampleModalYoutubeLink"><span
+                                    class="material-symbols-outlined align-middle">
+                                    exit_to_app
+                                </span></a>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <div class="input-group mb-3">
+                            <a id="exampleModalPrintLink" class="btn btn-secondary" type="button"><span
+                                    class="material-symbols-outlined align-middle">
+                                    print
+                                </span> Print</a>
+                        </div>
+                        <div class="input-group mb-3">
+                            <a id="exampleModalEditLink" class="btn btn-primary" type="button"><span
+                                    class="material-symbols-outlined align-middle">
+                                    edit
+                                </span> Edit</a>
+                        </div>
+                        <div class="input-group mb-3">
+                            <a id="exampleModalDeleteLink" class="btn btn-danger"
+                                onclick="return confirm('Are you sure?')"><span
+                                    class="material-symbols-outlined align-middle">delete
+                                </span> Delete</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <a id="exampleModalPlayLink" class="btn btn-success"><span
+                        class="material-symbols-outlined align-middle">play_circle
+                    </span></a>
+            </div>
+        </div>
+    </div>
+</div>
 {{end}}
 
 {{define "player"}}
 {{if .CurrentSong}}
 <script>
-    var socket = new WebSocket("wss://localhost:8000/echo");
+    // var socket = new WebSocket("wss://localhost:8000/echo");
 
-    socket.onopen = function () {
-        console.log("Status: Connected")
-    };
+    // socket.onopen = function () {
+    //     console.log("Status: Connected")
+    // };
 
-    socket.onmessage = function (e) {
-        switch (e.data) {
-            case "play":
-                stop_btn.removeAttribute("hidden", null)
-                break;
-            case "pause":
-                play_btn.removeAttribute("hidden", null)
-                break;
-            default:
-                break;
-        }
-        console.log(e.data)
-    };
+    // socket.onmessage = function (e) {
+    //     switch (e.data) {
+    //         case "play":
+    //             stop_btn.removeAttribute("hidden", null)
+    //             break;
+    //         case "pause":
+    //             play_btn.removeAttribute("hidden", null)
+    //             break;
+    //         default:
+    //             break;
+    //     }
+    //     console.log(e.data)
+    // };
 </script>
 <script>
-    function play() {
-        socket.send("play");
-        play_btn.setAttribute("hidden", null)
-    }
-    function stop() {
-        socket.send("pause");
-        stop_btn.setAttribute("hidden", null)
-    }
+    // function play() {
+    //     socket.send("play");
+    //     play_btn.setAttribute("hidden", null)
+    // }
+    // function stop() {
+    //     socket.send("pause");
+    //     stop_btn.setAttribute("hidden", null)
+    // }
 </script>
 <style>
     #palyer {

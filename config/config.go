@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/spf13/viper"
@@ -19,6 +20,8 @@ func InitConfig(logger log.Logger) {
 	viper.SetConfigName(ConfigFile) // name of config file (without extension)
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(ConfigPath)
+	viper.SetEnvKeyReplacer(strings.NewReplacer(`.`, `_`))
+	viper.AutomaticEnv()
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			writeDefaultConfig(logger)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/jaredwarren/rpi_music/config"
 	"github.com/jaredwarren/rpi_music/db"
+	"github.com/jaredwarren/rpi_music/localtunnel"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
@@ -31,6 +32,18 @@ func main() {
 	if runtime.GOOS == "darwin" {
 		logger.Info("Disable Mac features.")
 		viper.Set("rfid-enabled", false)
+	}
+
+	// Localtunnel setup
+	if viper.GetBool("localtunnel.enabled") {
+		err := localtunnel.Init()
+		if err != nil {
+			logger.Fatal(err.Error())
+		}
+		defer func() {
+			err := localtunnel.Close()
+			logger.Fatal(err.Error())
+		}()
 	}
 
 	// Init Player

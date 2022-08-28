@@ -6,8 +6,8 @@
 <div class="container-fluid">
     <ul class="nav nav-pills">
         <li class="nav-item">
-            <a class="nav-link" href="/songs"><span
-                    class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
+            <a class="nav-link" href="/songs"><span class="material-symbols-outlined align-middle">library_music</span>
+                <span>Songs</span></a>
         </li>
         <li class="nav-item">
             <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span>
@@ -22,15 +22,14 @@
     // Add a global error event listener early on in the page load, to help ensure that browsers
     // which don't support specific functionality still end up displaying a meaningful message.
     window.addEventListener('error', function (error) {
-        if (ChromeSamples && ChromeSamples.setStatus) {
+        if (ChromeSamples && ChromeSamples.log) {
             console.error(error);
-            ChromeSamples.setStatus(error.message + ' (Your browser may not support this feature.)');
+            ChromeSamples.log(error.message + ' (Your browser may not support this feature.)');
             error.preventDefault();
         }
     });
 </script>
 <h1>{{.Song.Title}}</h1>
-<button id="scanButton" class="btn btn-primary btn-lg"><i class="icon icon-link"></i> NFC</button>
 <script>
     var ChromeSamples = {
         log: function () {
@@ -39,12 +38,8 @@
             }).join(' ');
             document.querySelector('#log').textContent += line + '\n';
         },
-
         clearLog: function () {
             document.querySelector('#log').textContent = '';
-        },
-        setStatus: function (status) {
-            document.querySelector('#status').textContent = status;
         },
         setContent: function (newContent) {
             var content = document.querySelector('#content');
@@ -54,28 +49,18 @@
             content.appendChild(newContent);
         }
     };
-</script>
-<!-- <h3>Live Output</h3> -->
-<div id="output" class="output">
-    <div id="content"></div>
-    <div id="status"></div>
-    <pre id="log"></pre>
-</div>
-<script>
     if (/Chrome\/(\d+\.\d+.\d+.\d+)/.test(navigator.userAgent)) {
         // Let's log a warning if the sample is not supposed to execute on this version of Chrome.
         if (89 > parseInt(RegExp.$1)) {
-            ChromeSamples.setStatus('Warning! Keep in mind this sample has been tested with Chrome ' + 89 + '.');
+            ChromeSamples.log('Warning! Keep in mind this sample has been tested with Chrome ' + 89 + '.');
         }
     }
-</script>
-<script>
     log = ChromeSamples.log;
-    if (!("NDEFReader" in window))
-        ChromeSamples.setStatus("Web NFC is not available. Use Chrome on Android.");
-</script>
-<script>scanButton.addEventListener("click", async () => {
-        log("User clicked scan button");
+    window.addEventListener("DOMContentLoaded", async () => {
+        if (!("NDEFReader" in window)) {
+            ChromeSamples.log("Web NFC is not available. Use Chrome on Android.");
+            return
+        }
         try {
             const ndef = new NDEFReader();
             await ndef.scan();
@@ -93,21 +78,35 @@
         }
     });
 </script>
-<div class="container">
-    <form action="/song/{{.Song.ID}}" method="post">
-        <div class="form-group">
-            <label class="form-label" for="url">URL:</label>
-            <input class="form-input" id="url" name="url" type="url" value="{{.Song.URL}}" required>
+<div class="container h-100">
+    <div class="card row h-100 justify-content-center align-items-center">
+        <div class="card-body">
+            <form action="/song/{{.Song.ID}}" method="post">
+                {{ .csrfField }}
+                <fieldset>
+                    <legend>Enter New Song</legend>
+                    <div class="mb-3">
+                        <label for="url" class="form-label">URL:</label>
+                        <input class="form-control" id="url" name="url" type="url" value="{{.Song.URL}}" required
+                            placeholder="youtube.com">
+                    </div>
+                    <div class="mb-3">
+                        <label for="rfid" class="form-label">RFID</label>
+                        <input class="form-control" id="rfid" name="rfid" type="text" value="{{.Song.RFID}}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><span
+                            class="material-symbols-outlined align-middle">playlist_add</span> Add</button>
+                </fieldset>
+                <hr>
+                <div class="form-group">
+                    <small id="lc" class="form-text text-muted">
+                        <pre id="log" style="white-space: pre-wrap;"></pre>
+                    </small>
+                </div>
+            </form>
         </div>
-        <div class="form-group">
-            <label class="form-label" for="rfid">RFID:</label>
-            <input class="form-input" id="rfid" name="rfid" type="text" value="{{.Song.RFID}}" required>
-        </div>
-        <button class="btn btn-primary" type="submit"><i class="icon icon-plus"></i> Add</button>
-    </form>
+    </div>
 </div>
-
-
 {{end}}
 
 {{define "player"}}{{end}}
