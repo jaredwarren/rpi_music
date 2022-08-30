@@ -69,7 +69,7 @@
                     document.getElementById("exampleModalYoutubeLink").setAttribute("href", res.URL);
                     document.getElementById("exampleModalEditLink").setAttribute("href", "/song/" + res.ID);
                     document.getElementById("exampleModalPrintLink").setAttribute("href", "/song/" + res.ID + "/print");
-                    document.getElementById("exampleModalPlayLink").setAttribute("href", "/song/" + res.ID + "/play");
+                    document.getElementById("exampleModalPlayLink").setAttribute("onclick", "wsplay(event, '" + res.ID + "')");
                     document.getElementById("exampleModalDeleteLink").setAttribute("href", "/song/" + res.ID + "/delete");
                     myModal.show();
                 })
@@ -98,11 +98,12 @@
             <tr id="{{$s.RFID}}" onclick="showSongInfo(this)" data-whatever="{{$s.ID}}">
                 <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
                 <td>{{$s.Title}}</td>
-                <td class="align-middle"><a class="btn btn-outline-primary" href="/song/{{$s.ID}}/play"><span
+                <td class="align-middle"><button onClick="wsplay(event, '{{$s.ID}}')" class="btn btn-outline-primary" href="/song/{{$s.ID}}/play"><span
                             class="material-symbols-outlined align-middle">play_circle
-                        </span></a></td>
+                        </span></button></td>
             </tr>
             {{end}}
+            
         </tbody>
     </table>
 </div>
@@ -177,37 +178,6 @@
 
 {{define "player"}}
 {{if .CurrentSong}}
-<script>
-    // var socket = new WebSocket("wss://localhost:8000/echo");
-
-    // socket.onopen = function () {
-    //     console.log("Status: Connected")
-    // };
-
-    // socket.onmessage = function (e) {
-    //     switch (e.data) {
-    //         case "play":
-    //             stop_btn.removeAttribute("hidden", null)
-    //             break;
-    //         case "pause":
-    //             play_btn.removeAttribute("hidden", null)
-    //             break;
-    //         default:
-    //             break;
-    //     }
-    //     console.log(e.data)
-    // };
-</script>
-<script>
-    // function play() {
-    //     socket.send("play");
-    //     play_btn.setAttribute("hidden", null)
-    // }
-    // function stop() {
-    //     socket.send("pause");
-    //     stop_btn.setAttribute("hidden", null)
-    // }
-</script>
 <style>
     #palyer {
         height: 70px;
@@ -224,13 +194,13 @@
     }
 </style>
 <div id="palyer">
-    <img src="{{.CurrentSong.Thumbnail}}" style="height: 50px;">
-    <span style="margin-left: 6px;">{{.CurrentSong.Title}}</span>
-    <button id="play_btn" class="btn btn-primary" {{if .Player.Playing}}hidden{{end}} onclick="play()"><span
+    <img id="player_thumb" src="{{.CurrentSong.Thumbnail}}" style="height: 50px;">
+    <span id="player_title" style="margin-left: 6px;">{{.CurrentSong.Title}}</span>
+    <button id="play_btn" class="btn btn-primary" {{if .Player.Playing}}hidden{{end}}  onClick="wsplay(event, '{{.CurrentSong.ID}}')"><span
             class="material-symbols-outlined align-middle">
             play_circle
         </span></button>
-    <button id="stop_btn" class="btn btn-primary" {{if not .Player.Playing}}hidden{{end}} onclick="stop()"><span
+    <button id="stop_btn" class="btn btn-primary" {{if not .Player.Playing}}hidden{{end}} onclick="wsstop()"><span
             class="material-symbols-outlined align-middle">
             pause_circle
         </span></button>

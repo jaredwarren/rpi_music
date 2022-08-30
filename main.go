@@ -41,8 +41,7 @@ func main() {
 			logger.Fatal(err.Error())
 		}
 		defer func() {
-			err := localtunnel.Close()
-			logger.Fatal(err.Error())
+			_ = localtunnel.Close()
 		}()
 	}
 

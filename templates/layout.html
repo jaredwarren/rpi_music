@@ -46,6 +46,72 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-pprn3073KE6tl6bjs2QrFaJGz5/SUsLqktiwsUTF55Jfv3qYSDhgCecCxMW52nD2"
         crossorigin="anonymous"></script>
+    <script>
+        var socket;
+        window.addEventListener('DOMContentLoaded', () => {
+            socket = new WebSocket("wss://asdffdsa.loca.lt/echo");
+            socket.onopen = function () {
+                console.log("Status: Connected\n");
+            };
+            socket.onmessage = function (e) {
+                var d = JSON.parse(e.data);
+                switch (d.command) {
+                    case "player.play":
+                        player_title.innerHTML = d.data.title;
+                        player_thumb.setAttribute("src", "/" + d.data.thumb);
+                        stop_btn.removeAttribute("hidden", null);
+                        play_btn.setAttribute("onclick", "wsplay(event, '" + d.data.id + "')");
+                        break;
+                    case "player.stop":
+                        play_btn.removeAttribute("hidden", null);
+                        break;
+                    case "download":
+                        // What to do here? confirm started, update message
+                        break;
+                    default:
+                        console.error("Unknown command:", d.command);
+                        console.log(d);
+                        break;
+                }
+                console.log(d);
+            };
+        });
+
+        function wsplay(e, id) {
+            console.log("on play....");
+            e.stopPropagation();
+            play_btn.setAttribute("hidden", null);
+            stop_btn.setAttribute("hidden", null);
+            send({
+                command: "player.play",
+                data: {
+                    song_id: id
+                }
+            });
+        }
+        function wsstop() {
+            send({
+                command: "player.stop"
+            });
+            if (play_btn) {
+                play_btn.setAttribute("hidden", null);
+            }
+            if (stop_btn) {
+                stop_btn.setAttribute("hidden", null);
+            }
+        }
+
+        function send(msg) {
+            if (!socket) {
+                return false;
+            }
+            if (!msg || !msg.command) {
+                return false;
+            }
+            console.log(msg);
+            socket.send(JSON.stringify(msg));
+        }
+    </script>
     <header>
     </header>
     <nav class="navbar navbar-expand-lg bg-light">

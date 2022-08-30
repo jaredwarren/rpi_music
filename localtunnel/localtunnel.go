@@ -20,7 +20,6 @@ var (
 )
 
 func Init() error {
-
 	ltHost := viper.GetString("localtunnel.host") // LOCALTUNNEL_HOST
 	if ltHost == "" {
 		return fmt.Errorf("localtunnel host required")
@@ -47,12 +46,9 @@ func Init() error {
 		return fmt.Errorf("local port required")
 	}
 
-	// lt --port 8000 --subdomain jlwpimusic
 	args := []string{
-		"--port",
-		port,
-		"--subdomain",
-		ltHost,
+		"--port", port,
+		"--subdomain", ltHost,
 	}
 	cmd = exec.Command("lt", args...)
 	err = cmd.Start()

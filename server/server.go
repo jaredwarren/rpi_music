@@ -67,6 +67,8 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	sub := r.PathPrefix("/").Subrouter()
 	sub.Use(s.requireLoginMiddleware)
 
+	sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
+
 	// list songs
 	sub.HandleFunc("/", s.ListSongHandler).Methods(http.MethodGet)
 	sub.HandleFunc("/songs", s.ListSongHandler).Methods(http.MethodGet)

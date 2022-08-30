@@ -100,6 +100,7 @@ func (l *StdLogger) printStd(ll, msg string, fields ...Field) {
 		ll,
 		msg,
 	}
+	// TODO: parse messages that start with "[...] ..." make bracket light grey
 	cc := color.New(color.FgHiWhite, color.Bold).SprintFunc()
 	for _, fv := range fields {
 		v = append(v, fmt.Sprintf("\n\t%s: %+v", cc(fv.Key), fv.Value))
