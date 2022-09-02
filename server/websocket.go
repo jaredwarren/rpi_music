@@ -2,11 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/jaredwarren/rpi_music/log"
+	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
 )
 
@@ -68,14 +71,21 @@ func (s *Server) reader(ws *websocket.Conn) {
 			resp = s.player_stop(msg)
 		case "download":
 			resp = s.download(msg)
+		case "toast":
+			// used to test toast
+			MessageChannel <- msg
+		case "log":
+			s.log(msg)
 		default:
 			s.logger.Warn("unknown ws command", log.Any("cmd", msg.Command))
 		}
 
 		// Write message back to browser
-		if err = ws.WriteJSON(resp); err != nil {
-			s.logger.Error(err.Error())
-			continue
+		if resp != nil {
+			if err = ws.WriteJSON(resp); err != nil {
+				s.logger.Error(err.Error())
+				continue
+			}
 		}
 	}
 }
@@ -118,6 +128,21 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 	s.reader(ws)
 }
 
+func (s *Server) log(msg *Message) {
+	switch msg.Data["level"] {
+	case "error":
+		s.logger.Error(msg.Data["message"])
+	case "warn":
+		s.logger.Warn(msg.Data["message"])
+	case "info":
+		s.logger.Info(msg.Data["message"])
+	case "debug":
+		s.logger.Debug(msg.Data["message"])
+	default:
+		s.logger.Warn("unknown log message", log.Any("msg", msg))
+	}
+}
+
 func (s *Server) player_play(msg *Message) *Message {
 	resp := &Message{
 		Command: "player.play",
@@ -155,7 +180,77 @@ func (s *Server) download(msg *Message) *Message {
 		Command: "download",
 	}
 	s.logger.Debug("Download.........", log.Any("msg", msg))
-	// TODO: start downlaod ASYNC
-	// push progress messages onto MessageChannel <- msg
+
+	url := msg.Data["url"]
+	rfid := msg.Data["rfid"]
+	resp.Data = map[string]string{
+		"rfid": rfid,
+		"url":  url,
+	}
+
+	go s.downloadVideo(rfid, url)
+
 	return resp
+}
+
+func (s *Server) downloadVideo(rfid, url string) {
+	rfid = strings.ReplaceAll(rfid, ":", "")
+
+	MessageChannel <- &Message{
+		Command: "toast",
+		Data: map[string]string{
+			"title": "Downloading Video",
+			"text":  fmt.Sprintf("%s", url),
+		},
+	}
+
+	song := &model.Song{
+		ID:   rfid,
+		URL:  url,
+		RFID: rfid,
+	}
+
+	// try to download file again
+	file, video, err := s.downloader.DownloadVideo(url, s.logger)
+	if err != nil {
+		MessageChannel <- &Message{
+			Command: "error",
+			Error:   fmt.Errorf("DownloadVideo|%w", err).Error(),
+		}
+	}
+
+	MessageChannel <- &Message{
+		Command: "toast",
+		Data: map[string]string{
+			"title": "Downloading Thumb",
+			"text":  fmt.Sprintf("%s", video.Title),
+		},
+	}
+
+	tmb, err := s.downloader.DownloadThumb(video)
+	if err != nil {
+		s.logger.Warn("UpdateSongHandler|downloadThumb", log.Error(err))
+		// ignore err
+	}
+
+	song.Thumbnail = tmb
+	song.FilePath = file
+	song.Title = video.Title
+
+	// Update otherwise
+	err = s.db.UpdateSong(song)
+	if err != nil {
+		MessageChannel <- &Message{
+			Command: "error",
+			Error:   fmt.Errorf("db.Update|%w", err).Error(),
+		}
+		return
+	}
+
+	b, _ := json.Marshal(song)
+	// ignore error for now
+	MessageChannel <- &Message{
+		Command: "download.done",
+		Data:    map[string]string{"song": string(b)},
+	}
 }

@@ -75,7 +75,7 @@ func TestListSongHandler(t *testing.T) {
 		data, err := ioutil.ReadAll(res.Body)
 		assert.NoError(t, err)
 
-		assert.Contains(t, string(data), `<form action="/song/test_song" method="post">`)
+		assert.Contains(t, string(data), `test_song`)
 	}
 
 	{ // test Post Edit

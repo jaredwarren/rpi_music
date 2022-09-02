@@ -23,17 +23,27 @@
     // Add a global error event listener early on in the page load, to help ensure that browsers
     // which don't support specific functionality still end up displaying a meaningful message.
     window.addEventListener('error', function (error) {
-        if (ChromeSamples && ChromeSamples.log) {
-            console.error(error);
-            ChromeSamples.log(error.message + ' (Your browser may not support this feature.)');
-            error.preventDefault();
-        }
+        send({
+            command: "log",
+            data: {
+                level: "error",
+                message: error + ""
+            }
+        });
+        error.preventDefault();
     });
     var ChromeSamples = {
         log: function () {
             var line = Array.prototype.slice.call(arguments).map(function (argument) {
                 return typeof argument === 'string' ? argument : JSON.stringify(argument);
             }).join(' ');
+            send({
+                command: "log",
+                data: {
+                    level: "info",
+                    message: line
+                }
+            });
             document.querySelector('#log').textContent += line + '\n';
         },
         clearLog: function () {
@@ -59,27 +69,28 @@
             ChromeSamples.log("Web NFC is not available. Use Chrome on Android.");
             return
         }
-        try {
-            const ndef = new NDEFReader();
-            await ndef.scan();
-            log("> Scan started");
-            ndef.addEventListener("readingerror", () => {
-                log("Argh! Cannot read data from the NFC tag. Try another one?");
-            });
-            ndef.addEventListener("reading", ({ message, serialNumber }) => {
-                log(`> Serial Number: ${serialNumber}`);
-                document.querySelector('#rfid').value = serialNumber;
-                log(`> Records: (${message.records.length})`);
-            });
-        } catch (error) {
-            log("Argh! " + error);
-        }
+        // try {
+        //     const ndef = new NDEFReader();
+        //     await ndef.scan();
+        //     log("> Scan started");
+        //     ndef.addEventListener("readingerror", () => {
+        //         log("Argh! Cannot read data from the NFC tag. Try another one?");
+        //     });
+        //     ndef.addEventListener("reading", ({ message, serialNumber }) => {
+        //         log(`> Serial Number: ${serialNumber}`);
+        //         document.querySelector('#rfid').value = serialNumber;
+        //         log(`> Records: (${message.records.length})`);
+        //     });
+        // } catch (error) {
+        //     log("Argh! " + error);
+        // }
     });
 
-    function submitHandler(e){
+    function submitHandler(e) {
         e.stopPropagation();
         console.log("on submit");
         console.warn("TODO: start loading here...");
+        // hide button, or show loading, etc
         send({
             command: "download",
             data: {
@@ -88,6 +99,53 @@
             }
         });
         return false;
+    }
+    async function onbtnclick() {
+        send({
+            command: "log",
+            data: {
+                level: "debug",
+                message: 'start nfc'
+            }
+        });
+        try {
+            const ndef = new NDEFReader();
+            await ndef.scan();
+            send({
+                command: "log",
+                data: {
+                    level: "debug",
+                    message: 'waiting for nfc'
+                }
+            });
+            ndef.addEventListener("readingerror", () => {
+                send({
+                    command: "log",
+                    data: {
+                        level: "error",
+                        message: "readingerror"
+                    }
+                });
+            });
+            ndef.addEventListener("reading", ({ message, serialNumber }) => {
+                send({
+                    command: "log",
+                    data: {
+                        level: "debug",
+                        message: 'read nfc:' + serialNumber
+                    }
+                });
+                document.querySelector('#rfid').value = serialNumber;
+            });
+        } catch (error) {
+            send({
+                command: "log",
+                data: {
+                    level: "error",
+                    message: error + ''
+                }
+            });
+        }
     }
 </script>
 <div class="container h-100">
@@ -116,9 +174,29 @@
                     </small>
                 </div>
             </form>
+            <button onclick="onbtnclick()" id="scanButton1" class="btn btn-primary btn-lg"><span
+                    class="material-symbols-outlined align-middle">nfc</span> NFC</button>
+        </div>
+    </div>
+    <hr>
+</div>
+
+
+<!-- Toast -->
+<div class="toast-container">
+    <div id="liveToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <!-- <img src="..." class="rounded me-2" alt="..."> -->
+            <strong class="me-auto">Bootstrap</strong>
+            <small class="text-muted">just now</small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            See? Just like this.
         </div>
     </div>
 </div>
+
 {{end}}
 
 {{define "player"}}{{end}}

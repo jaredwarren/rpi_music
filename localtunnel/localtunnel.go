@@ -20,6 +20,7 @@ var (
 )
 
 func Init() error {
+	// TODO: check if localtunnel is installed!!!
 	ltHost := viper.GetString("localtunnel.host") // LOCALTUNNEL_HOST
 	if ltHost == "" {
 		return fmt.Errorf("localtunnel host required")

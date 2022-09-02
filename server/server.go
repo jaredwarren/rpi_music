@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
@@ -45,17 +43,22 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// init server
 	s := New(cfg.Db, cfg.Logger)
 
-	CSRF := csrf.Protect(
-		[]byte(os.Getenv("CSRF_KEY")),
-		// instruct the browser to never send cookies during cross site requests
-		csrf.SameSite(csrf.SameSiteStrictMode),
-	)
+	// Disabled for now because it doesn't work very well with localtunnnel
+	// CSRF := csrf.Protect(
+	// 	[]byte(os.Getenv("CSRF_KEY")),
+	// 	// instruct the browser to never send cookies during cross site requests
+	// 	csrf.SameSite(csrf.SameSiteNoneMode),
+	// 	csrf.Path("/login"),
+	// 	csrf.TrustedOrigins([]string{"*"}),
+	// 	csrf.HttpOnly(false),
+	// 	csrf.Secure(false),
+	// )
 
 	// Setup Handlers
 	r := mux.NewRouter()
-	r.Use(CSRF)
-	r.Use(mux.CORSMethodMiddleware(r))
 	r.Use(s.loggingMiddleware)
+	// r.Use(CSRF)
+	r.Use(mux.CORSMethodMiddleware(r))
 
 	// Public Methods
 	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
@@ -132,7 +135,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Info(r.RequestURI)
+		s.logger.Info(r.RequestURI, log.Any("r", r))
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(w, r)
 	})
@@ -171,10 +174,10 @@ type Server struct {
 
 func New(db db.DBer, l log.Logger) *Server {
 	return &Server{
-		db:     db,
-		logger: l,
-		// downloader: &downloader.YoutubeDownloader{}, // TODO: get this from config
-		downloader: &downloader.YoutubeDLDownloader{}, // TODO: get this from config
+		db:         db,
+		logger:     l,
+		downloader: &downloader.YoutubeDownloader{}, // TODO: get this from config
+		// downloader: &downloader.YoutubeDLDownloader{}, // TODO: get this from config
 	}
 }
 

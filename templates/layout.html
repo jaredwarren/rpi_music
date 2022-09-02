@@ -49,31 +49,51 @@
     <script>
         var socket;
         window.addEventListener('DOMContentLoaded', () => {
-            socket = new WebSocket("wss://asdffdsa.loca.lt/echo");
+            socket = new WebSocket("wss://" + window.location.host + "/echo?t={{ .csrfField }}");
             socket.onopen = function () {
                 console.log("Status: Connected\n");
             };
             socket.onmessage = function (e) {
-                var d = JSON.parse(e.data);
-                switch (d.command) {
+                var msg = JSON.parse(e.data);
+                if (!msg) {
+                    console.warn("empty message:", e.data);
+                    return;
+                }
+                console.log("Message:", msg.command);
+                console.log(msg);
+                switch (msg.command) {
                     case "player.play":
-                        player_title.innerHTML = d.data.title;
-                        player_thumb.setAttribute("src", "/" + d.data.thumb);
+                        player_title.innerHTML = msg.data.title;
+                        player_thumb.setAttribute("src", "/" + msg.data.thumb);
                         stop_btn.removeAttribute("hidden", null);
-                        play_btn.setAttribute("onclick", "wsplay(event, '" + d.data.id + "')");
+                        play_btn.setAttribute("onclick", "wsplay(event, '" + msg.data.id + "')");
                         break;
                     case "player.stop":
                         play_btn.removeAttribute("hidden", null);
                         break;
                     case "download":
-                        // What to do here? confirm started, update message
+                        // ignore
+                        break;
+                    case "download.done":
+                        window.location.href = '/songs';
+                        // TODO: stop loading
+                        break;
+                    case "toast":
+                        var el = document.getElementById("liveToast");
+                        el.querySelector(".me-auto").innerHTML = msg.data.title || ''
+                        el.querySelector(".text-muted").innerHTML = msg.data.subtitle || ''
+                        el.querySelector(".toast-body").innerHTML = msg.data.text || ''
+                        var toast = new bootstrap.Toast(el, {});
+                        toast.show();
+                        break;
+                    case "error":
+                        console.error(msg);
+                        alert(e.error);
                         break;
                     default:
-                        console.error("Unknown command:", d.command);
-                        console.log(d);
+                        console.error("Unknown command:", msg.command);
                         break;
                 }
-                console.log(d);
             };
         });
 
@@ -103,13 +123,27 @@
 
         function send(msg) {
             if (!socket) {
+                console.warn("no socket")
+                return false;
+            }
+            if (!socket.OPEN) {
+                console.warn("socket not open")
+                return false;
+            }
+            if (socket.CONNECTING) {
+                console.warn("socket connecting")
                 return false;
             }
             if (!msg || !msg.command) {
                 return false;
             }
             console.log(msg);
-            socket.send(JSON.stringify(msg));
+            try {
+                socket.send(JSON.stringify(msg));
+            } catch (error) {
+                console.warn(error);
+            }
+            return true;
         }
     </script>
     <header>
