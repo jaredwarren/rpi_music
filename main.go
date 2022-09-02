@@ -36,7 +36,7 @@ func main() {
 
 	// Localtunnel setup
 	if viper.GetBool("localtunnel.enabled") {
-		err := localtunnel.Init()
+		err := localtunnel.Init(logger)
 		if err != nil {
 			logger.Fatal(err.Error())
 		}
