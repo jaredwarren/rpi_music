@@ -7,19 +7,22 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/spf13/viper"
 )
 
 type lt struct {
-	cmd *exec.Cmd
-	mu  sync.Mutex
+	cmd    *exec.Cmd
+	mu     sync.Mutex
+	logger log.Logger
 }
 
 var (
 	cmd *exec.Cmd
 )
 
-func Init() error {
+func Init(logger log.Logger) error {
+	logger.Info("[localtunnel] localtunnel")
 	// TODO: check if localtunnel is installed!!!
 	ltHost := viper.GetString("localtunnel.host") // LOCALTUNNEL_HOST
 	if ltHost == "" {
@@ -47,6 +50,7 @@ func Init() error {
 		return fmt.Errorf("local port required")
 	}
 
+	logger.Info("[localtunnel] starting localtunnel", log.Any("subdomain", ltHost), log.Any("local_host", h), log.Any("port", port))
 	args := []string{
 		"--port", port,
 		"--subdomain", ltHost,
