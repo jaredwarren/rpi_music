@@ -1,6 +1,7 @@
 package localtunnel
 
 import (
+	"bufio"
 	"fmt"
 	"net/url"
 	"os/exec"
@@ -56,10 +57,24 @@ func Init(logger log.Logger) error {
 		"--subdomain", ltHost,
 	}
 	cmd = exec.Command("lt", args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("[ERROR] StdoutPipe error: %w", err)
+	}
 	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("[ERROR] start error: %w", err)
 	}
+	go func() {
+		in := bufio.NewScanner(stdout)
+
+		for in.Scan() {
+			logger.Info(in.Text())
+		}
+		if err := in.Err(); err != nil {
+			logger.Error(err.Error())
+		}
+	}()
 	go func() {
 		cmd.Wait()
 	}()
