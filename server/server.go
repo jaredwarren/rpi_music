@@ -84,8 +84,8 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
 	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
-	sub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet) // temp unitl I can get a better UI
 	ssub.HandleFunc("/{song_id}/play", s.PlaySongHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/stop", s.StopSongHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/play_video", s.PlayVideoHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/print", s.PrintHandler).Methods(http.MethodGet)
@@ -174,10 +174,10 @@ type Server struct {
 
 func New(db db.DBer, l log.Logger) *Server {
 	return &Server{
-		db:         db,
-		logger:     l,
-		downloader: &downloader.YoutubeDownloader{}, // TODO: get this from config
-		// downloader: &downloader.YoutubeDLDownloader{}, // TODO: get this from config
+		db:     db,
+		logger: l,
+		// downloader: &downloader.YoutubeDownloader{}, // TODO: get this from config
+		downloader: &downloader.YoutubeDLDownloader{}, // TODO: get this from config
 	}
 }
 
