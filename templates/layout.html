@@ -90,6 +90,11 @@
                         console.error(msg);
                         alert(e.error);
                         break;
+                     case "ping":
+                        send({
+                            command: "pong",
+                        });
+                        break;
                     default:
                         console.error("Unknown command:", msg.command);
                         break;

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
@@ -61,8 +60,8 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullData := map[string]interface{}{
-		"Song":           song,
-		csrf.TemplateTag: csrf.TemplateField(r),
+		"Song":      song,
+		TemplateTag: s.GetToken(w, r),
 	}
 
 	files := []string{
@@ -86,6 +85,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 		"Songs":       songs,
 		"CurrentSong": song,
 		"Player":      cp,
+		TemplateTag:   s.GetToken(w, r),
 	}
 
 	// for now
@@ -100,7 +100,8 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]interface{}{
-		"Song": model.NewSong(),
+		"Song":      model.NewSong(),
+		TemplateTag: s.GetToken(w, r),
 	}
 	files := []string{
 		"templates/edit_song.html",
@@ -285,14 +286,14 @@ func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullData := map[string]interface{}{
-		"Song": song,
+		"Song":      song,
+		TemplateTag: s.GetToken(w, r),
 	}
 
 	files := []string{
 		"templates/play_video.html",
 		"templates/layout.html",
 	}
-	// TODO:  maybe these would be better as objects
 	tpl := template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles(files...))
 	s.render(w, r, tpl, fullData)
 }

@@ -43,21 +43,12 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// init server
 	s := New(cfg.Db, cfg.Logger)
 
-	// Disabled for now because it doesn't work very well with localtunnnel
-	// CSRF := csrf.Protect(
-	// 	[]byte(os.Getenv("CSRF_KEY")),
-	// 	// instruct the browser to never send cookies during cross site requests
-	// 	csrf.SameSite(csrf.SameSiteNoneMode),
-	// 	csrf.Path("/login"),
-	// 	csrf.TrustedOrigins([]string{"*"}),
-	// 	csrf.HttpOnly(false),
-	// 	csrf.Secure(false),
-	// )
-
 	// Setup Handlers
 	r := mux.NewRouter()
 	r.Use(s.loggingMiddleware)
-	// r.Use(CSRF)
+	if viper.GetBool("csrf.enabled") {
+		r.Use(s.requireCSRF)
+	}
 	r.Use(mux.CORSMethodMiddleware(r))
 
 	// Public Methods
@@ -209,8 +200,9 @@ func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 	song := player.GetPlaying()
 
 	fullData := map[string]interface{}{
-		"Player": cp,
-		"Song":   song,
+		"Player":    cp,
+		"Song":      song,
+		TemplateTag: s.GetToken(w, r),
 	}
 	files := []string{
 		"templates/player.html",

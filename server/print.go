@@ -45,7 +45,8 @@ func (s *Server) PrintHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullData := map[string]interface{}{
-		"Song": song,
+		"Song":      song,
+		TemplateTag: s.GetToken(w, r),
 	}
 	files := []string{
 		"templates/print.html",

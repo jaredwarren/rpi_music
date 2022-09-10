@@ -95,7 +95,8 @@
             command: "download",
             data: {
                 url: url.value,
-                rfid: rfid.value
+                rfid: rfid.value,
+                thumb: thumb.value
             }
         });
         return false;
@@ -163,6 +164,10 @@
                     <div class="mb-3">
                         <label for="rfid" class="form-label">RFID</label>
                         <input class="form-control" id="rfid" name="rfid" type="text" value="{{.Song.RFID}}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="thumb" class="form-label">Thumb</label>
+                        <input class="form-control" id="thumb" name="thumb" type="url" value="{{.Song.Thumb}}">
                     </div>
                     <button type="submit" class="btn btn-primary"><span
                             class="material-symbols-outlined align-middle">playlist_add</span> Add</button>

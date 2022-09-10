@@ -11,6 +11,7 @@ import (
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
+	"github.com/kkdai/youtube/v2"
 )
 
 type Message struct {
@@ -27,6 +28,7 @@ const (
 	pongWait = 60 * time.Second
 
 	// Send pings to client with this period. Must be less than pongWait.
+	// pingPeriod = (pongWait * 9) / 10
 	pingPeriod = (pongWait * 9) / 10
 
 	// Poll file for changes with this period.
@@ -45,18 +47,18 @@ func (s *Server) reader(ws *websocket.Conn) {
 	defer ws.Close()
 	ws.SetReadLimit(512)
 	ws.SetReadDeadline(time.Now().Add(pongWait))
-	ws.SetPongHandler(func(string) error { ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	// ws.SetPongHandler(func(string) error { ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		msg := &Message{}
 
 		_, r, err := ws.NextReader()
 		if err != nil {
-			s.logger.Warn(err.Error())
+			s.logger.Warn("NextReader error", log.Error(err))
 			return
 		}
 		err = json.NewDecoder(r).Decode(msg)
 		if err != nil {
-			s.logger.Warn(err.Error())
+			s.logger.Warn("json decode error", log.Error(err))
 			continue
 		}
 
@@ -76,6 +78,9 @@ func (s *Server) reader(ws *websocket.Conn) {
 			MessageChannel <- msg
 		case "log":
 			s.log(msg)
+		case "pong":
+			ws.SetReadDeadline(time.Now().Add(pongWait))
+			continue
 		default:
 			s.logger.Warn("unknown ws command", log.Any("cmd", msg.Command))
 		}
@@ -83,7 +88,7 @@ func (s *Server) reader(ws *websocket.Conn) {
 		// Write message back to browser
 		if resp != nil {
 			if err = ws.WriteJSON(resp); err != nil {
-				s.logger.Error(err.Error())
+				s.logger.Error("write response error", log.Error(err), log.Any("message", msg))
 				continue
 			}
 		}
@@ -102,12 +107,17 @@ func (s *Server) writer(ws *websocket.Conn) {
 			if msg != nil {
 				ws.SetWriteDeadline(time.Now().Add(writeWait))
 				if err := ws.WriteJSON(msg); err != nil {
+					s.logger.Error("write message error", log.Error(err), log.Any("message", msg))
 					return
 				}
 			}
 		case <-pingTicker.C:
+			fmt.Println("PING::: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 			ws.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := ws.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+			if err := ws.WriteJSON(&Message{
+				Command: "ping",
+			}); err != nil {
+				s.logger.Error("ping write error", log.Error(err))
 				return
 			}
 		}
@@ -183,17 +193,19 @@ func (s *Server) download(msg *Message) *Message {
 
 	url := msg.Data["url"]
 	rfid := msg.Data["rfid"]
+	thumb := msg.Data["thumb"]
 	resp.Data = map[string]string{
-		"rfid": rfid,
-		"url":  url,
+		"rfid":  rfid,
+		"url":   url,
+		"thumb": thumb,
 	}
 
-	go s.downloadVideo(rfid, url)
+	go s.downloadVideo(rfid, url, thumb)
 
 	return resp
 }
 
-func (s *Server) downloadVideo(rfid, url string) {
+func (s *Server) downloadVideo(rfid, url, thumb string) {
 	rfid = strings.ReplaceAll(rfid, ":", "")
 
 	MessageChannel <- &Message{
@@ -225,6 +237,15 @@ func (s *Server) downloadVideo(rfid, url string) {
 			"title": "Downloading Thumb",
 			"text":  fmt.Sprintf("%s", video.Title),
 		},
+	}
+
+	// Overwrite thumb
+	if thumb != "" {
+		video.Thumbnails = youtube.Thumbnails{
+			{
+				URL: thumb,
+			},
+		}
 	}
 
 	tmb, err := s.downloader.DownloadThumb(video)
