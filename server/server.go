@@ -9,9 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
+	"github.com/jaredwarren/rpi_music/graph"
+	"github.com/jaredwarren/rpi_music/graph/generated"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
@@ -45,11 +49,18 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// Setup Handlers
 	r := mux.NewRouter()
-	r.Use(s.loggingMiddleware)
-	if viper.GetBool("csrf.enabled") {
-		r.Use(s.requireCSRF)
-	}
-	r.Use(mux.CORSMethodMiddleware(r))
+	// r.Use(s.loggingMiddleware)
+
+	// setup graphql
+	r.HandleFunc("/play", playground.Handler("GraphQL playground", "/query"))
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
+	graphql := r.PathPrefix("/graphql").Subrouter()
+	graphql.Handle("", srv).Methods(http.MethodPost).Name("graphql")
+
+	// if viper.GetBool("csrf.enabled") {
+	// 	r.Use(s.requireCSRF)
+	// }
+	// r.Use(mux.CORSMethodMiddleware(r))
 
 	// Public Methods
 	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)

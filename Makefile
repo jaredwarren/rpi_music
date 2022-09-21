@@ -25,3 +25,5 @@ pi-build:
 pi-push:
 	scp -r pplayer pi@192.168.1.178:/home/pi/go/src/github.com/jaredwarren/rpi_music/pplayer
 
+gen:
+	go run -mod=mod github.com/99designs/gqlgen generate
