@@ -28,7 +28,6 @@ const (
 	pongWait = 60 * time.Second
 
 	// Send pings to client with this period. Must be less than pongWait.
-	// pingPeriod = (pongWait * 9) / 10
 	pingPeriod = (pongWait * 9) / 10
 
 	// Poll file for changes with this period.
@@ -47,7 +46,6 @@ func (s *Server) reader(ws *websocket.Conn) {
 	defer ws.Close()
 	ws.SetReadLimit(512)
 	ws.SetReadDeadline(time.Now().Add(pongWait))
-	// ws.SetPongHandler(func(string) error { ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		msg := &Message{}
 
@@ -112,7 +110,6 @@ func (s *Server) writer(ws *websocket.Conn) {
 				}
 			}
 		case <-pingTicker.C:
-			fmt.Println("PING::: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 			ws.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := ws.WriteJSON(&Message{
 				Command: "ping",
@@ -189,7 +186,6 @@ func (s *Server) download(msg *Message) *Message {
 	resp := &Message{
 		Command: "download",
 	}
-	s.logger.Debug("Download.........", log.Any("msg", msg))
 
 	url := msg.Data["url"]
 	rfid := msg.Data["rfid"]
