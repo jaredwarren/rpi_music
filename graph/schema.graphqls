@@ -39,14 +39,14 @@ input NewSong {
 type Song {
   id: ID!
   rfid: String
-  url: String!
+  url: String
 }
 
 
 type Query {
   links: [Link!]!
   songs: [Song!]!
-  song: ID!
+  song: Song!
 }
 
 type Mutation {
@@ -59,4 +59,8 @@ type Mutation {
   # Song mutations
   editSong(input: NewSong!): Song!
   deleteSong(input: ID!): Boolean!
+
+  # Player
+  playSong(input: Song!): Boolean!
+  stopSong(): Boolean!
 }
