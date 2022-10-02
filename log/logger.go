@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"strings"
 
@@ -122,27 +123,6 @@ func (l *StdLogger) Error(msg string, fields ...Field) {
 	l.printStd(cc("[Error]"), msg, fields...)
 }
 
-func getLastFile() string {
-	s := debug.Stack()
-	r := bytes.NewReader(s)
-	scanner := bufio.NewScanner(r)
-
-	files := []string{}
-	for scanner.Scan() {
-		str := scanner.Text()
-		if strings.Contains(str, ".go:") {
-			files = append(files, str)
-		}
-	}
-	for i := len(files) - 1; i >= 0; i-- {
-		if strings.Contains(files[i], "/logger.go:") {
-			return files[i+1]
-		}
-	}
-
-	return ""
-}
-
 func (l *StdLogger) Fatal(msg string, fields ...Field) {
 	f := getLastFile()
 	if f != "" {
@@ -179,6 +159,36 @@ func (l *StdLogger) printStd(ll, msg string, fields ...Field) {
 	}
 
 	l.Log.Println(v...)
+}
+
+// Get Stack
+var fileRegex = regexp.MustCompile(`(\/.+?\.go):([0-9]+)`)
+var loggerRegex = regexp.MustCompile(`\/logger\.go:`)
+
+func getLastFile() string {
+	s := debug.Stack()
+	r := bytes.NewReader(s)
+	scanner := bufio.NewScanner(r)
+
+	files := []string{}
+	for scanner.Scan() {
+		str := scanner.Text()
+		if strings.Contains(str, ".go:") {
+			files = append(files, str)
+		}
+	}
+	for i := len(files) - 1; i >= 0; i-- {
+		if loggerRegex.MatchString(files[i]) {
+			if len(files) >= i {
+				if fileRegex.MatchString(files[i+1]) {
+					parts := fileRegex.FindStringSubmatch(files[i+1])
+					return fmt.Sprintf("%s:%s", parts[1], parts[2])
+				}
+			} // else try next one?
+		}
+	}
+
+	return ""
 }
 
 /*
