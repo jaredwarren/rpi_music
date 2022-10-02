@@ -29,6 +29,21 @@ input Login {
   password: String!
 }
 
+type Config {
+  beep: Boolean
+  loop: Boolean
+  allowOverride: Boolean
+  volume: Int
+  playStartupSound: Boolean
+}
+
+input ConfigInput {
+  beep: Boolean
+  loop: Boolean
+  allowOverride: Boolean
+  volume: Int
+  playStartupSound: Boolean
+}
 
 input NewSong {
   id: ID # optional - new or update
@@ -39,21 +54,29 @@ input NewSong {
 type Song {
   id: ID!
   rfid: String
-  url: String
+  title: String
+  url: String!
+  thumb: String
+  filePath: String
 }
 
+input SongInput {
+  id: ID!
+  url: String
+}
 
 type Query {
   links: [Link!]!
   songs: [Song!]!
   song: Song!
+  config: Config!
 }
 
 type Mutation {
   createLink(input: NewLink!): Link!
   createUser(input: NewUser!): String!
   login(input: Login!): String!
-  # we'll talk about this in authentication section
+  logout(input: Boolean): Boolean!
   refreshToken(input: RefreshTokenInput!): String!
 
   # Song mutations
@@ -61,6 +84,9 @@ type Mutation {
   deleteSong(input: ID!): Boolean!
 
   # Player
-  playSong(input: Song!): Boolean!
-  stopSong(): Boolean!
+  playSong(input: SongInput!): Boolean!
+  stopSong(input: SongInput): Boolean!
+
+  # Config
+  editConfig(input: ConfigInput!): Config!
 }

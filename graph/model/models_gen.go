@@ -2,6 +2,22 @@
 
 package model
 
+type Config struct {
+	Beep             *bool `json:"beep"`
+	Loop             *bool `json:"loop"`
+	AllowOverride    *bool `json:"allowOverride"`
+	Volume           *int  `json:"volume"`
+	PlayStartupSound *bool `json:"playStartupSound"`
+}
+
+type ConfigInput struct {
+	Beep             *bool `json:"beep"`
+	Loop             *bool `json:"loop"`
+	AllowOverride    *bool `json:"allowOverride"`
+	Volume           *int  `json:"volume"`
+	PlayStartupSound *bool `json:"playStartupSound"`
+}
+
 type Link struct {
 	ID      string `json:"id"`
 	Title   string `json:"title"`
@@ -35,9 +51,17 @@ type RefreshTokenInput struct {
 }
 
 type Song struct {
-	ID   string  `json:"id"`
-	Rfid *string `json:"rfid"`
-	URL  string  `json:"url"`
+	ID       string  `json:"id"`
+	Rfid     *string `json:"rfid"`
+	Title    *string `json:"title"`
+	URL      string  `json:"url"`
+	Thumb    *string `json:"thumb"`
+	FilePath *string `json:"filePath"`
+}
+
+type SongInput struct {
+	ID  string  `json:"id"`
+	URL *string `json:"url"`
 }
 
 type User struct {

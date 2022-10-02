@@ -38,6 +38,19 @@ type HTMLServer struct {
 	logger log.Logger
 }
 
+func CorsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST,OPTIONS")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Start launches the HTML Server
 func StartHTTPServer(cfg *Config) *HTMLServer {
 	// Setup Context
@@ -49,28 +62,34 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// Setup Handlers
 	r := mux.NewRouter()
-	// r.Use(s.loggingMiddleware)
+	r.Use(s.loggingMiddleware)
+	r.Use(mux.CORSMethodMiddleware(r))
+	r.Use(CorsMiddleware) // for now all all
+
+	// Public Methods
+	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
+	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet, http.MethodOptions)
+	// r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
+	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
 	// setup graphql
-	r.HandleFunc("/play", playground.Handler("GraphQL playground", "/query"))
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
+	r.HandleFunc("/playground", playground.Handler("GraphQL playground", "/query"))
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{
+		Resolvers: &graph.Resolver{
+			Db: cfg.Db,
+		},
+	}))
 	graphql := r.PathPrefix("/graphql").Subrouter()
-	graphql.Handle("", srv).Methods(http.MethodPost).Name("graphql")
+	// graphql.Use(CorsMiddleware)
+	graphql.Handle("", srv).Methods(http.MethodPost, http.MethodGet, http.MethodOptions).Name("graphql")
 
 	// if viper.GetBool("csrf.enabled") {
 	// 	r.Use(s.requireCSRF)
 	// }
-	// r.Use(mux.CORSMethodMiddleware(r))
-
-	// Public Methods
-	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
-	r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
-	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet, http.MethodOptions)
-	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
 	// login-required methods
 	sub := r.PathPrefix("/").Subrouter()
-	sub.Use(s.requireLoginMiddleware)
+	// sub.Use(s.requireLoginMiddleware)// TEMP for testing
 
 	sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
 

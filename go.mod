@@ -6,6 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.17.20
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fatih/color v1.13.0
+	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/csrf v1.7.1
 	github.com/gorilla/mux v1.8.0

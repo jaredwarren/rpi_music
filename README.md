@@ -77,7 +77,7 @@ https://fonts.google.com/icons
 
 
 ### systemd logs
-`journalctl -u player.service`
+`journalctl -e -u player.service`
 
 ### Restart service?
 `systemctl restart player.service`
