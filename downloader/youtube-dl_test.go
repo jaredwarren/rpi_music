@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"os"
 	"testing"
 
 	"github.com/kkdai/youtube/v2"
@@ -14,8 +15,8 @@ func TestDownloadThumb(t *testing.T) {
 	})
 
 	assert.NoError(t, err)
-	assert.Equal(t, "aHR0cHM6Ly95b3V0dS5iZS9aSm9jZG5NdlRZcw==.webp", thumb)
-	// TODO: clean up files
+	assert.Equal(t, "thumb_files/Could_Have_Been_Me-ZJocdnMvTYs.webp", thumb)
+	_ = os.RemoveAll("./thumb_files")
 }
 
 func TestDownloadVideo(t *testing.T) {
@@ -23,7 +24,7 @@ func TestDownloadVideo(t *testing.T) {
 	f, vv, err := v.DownloadVideo("https://youtu.be/ZJocdnMvTYs", nil)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "aHR0cHM6Ly95b3V0dS5iZS9aSm9jZG5NdlRZcw==.mp4", f)
+	assert.Equal(t, "song_files/Could_Have_Been_Me-ZJocdnMvTYs.webm", f)
 	assert.Equal(t, "Could Have Been Me", vv.Title)
 	// TODO: clean up files
 }

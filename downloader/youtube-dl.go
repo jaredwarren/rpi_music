@@ -5,10 +5,16 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
 
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
 	"golang.org/x/sync/errgroup"
+)
+
+var (
+	logger = log.NewStdLogger(log.Debug)
 )
 
 type YoutubeDLDownloader struct{}
@@ -63,58 +69,6 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 
 	return filename, resp, nil
 
-	// args := []string{
-	// 	"--ignore-errors",
-	// 	"--no-call-home",
-	// 	"--no-cache-dir",
-	// 	"--skip-download",
-	// 	"--restrict-filenames",
-	// 	"-J",
-	// 	"-f",
-	// 	"best",
-	// }
-	// args = append(args, videoID)
-	// cmd := exec.Command("youtube-dl", args...)
-	// std, err := cmd.Output()
-	// if err != nil {
-	// 	return "", nil, err
-	// }
-	// rawOutput := string(std)
-
-	// var thumbRegex = regexp.MustCompile(`Destination: (.+?)\n`)
-	// result := thumbRegex.FindStringSubmatch(rawOutput)
-	// if len(result) == 0 {
-	// 	return "", nil, fmt.Errorf("invalid results from download:%s", rawOutput)
-	// }
-	// oldLocation := result[1]
-
-	// ext := filepath.Ext(oldLocation)
-	// sEnc := base64.StdEncoding.EncodeToString([]byte(videoID))
-	// fileName := filepath.Join(viper.GetString("player.thumb_root"), fmt.Sprintf("%s%s", sEnc, ext))
-
-	// err = os.Rename(oldLocation, fileName)
-	// if err != nil {
-	// 	return "", nil, err
-	// }
-
-	// title := oldLocation
-	// {
-	// 	args := []string{
-	// 		"-e",
-	// 	}
-	// 	args = append(args, videoID)
-	// 	cmd := exec.Command("youtube-dl", args...)
-	// 	std, _ := cmd.Output()
-	// 	rawOutput := strings.TrimSpace(string(std))
-	// 	if rawOutput != "" {
-	// 		title = rawOutput
-	// 	}
-	// }
-
-	// return fileName, &youtube.Video{
-	// 	ID:    videoID,
-	// 	Title: title,
-	// }, nil
 }
 
 func getVideoInfo(videoID string) (map[string]interface{}, error) {
@@ -146,12 +100,17 @@ func getVideoFilename(videoID string) (string, error) {
 		"--restrict-filenames",
 		"-f", "bestaudio",
 		"--get-filename",
-		"-o", `"./song_files/%(title)s-%(id)s.%(ext)s"`,
+		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
 	}
 	args = append(args, videoID)
 	cmd := exec.Command("youtube-dl", args...)
 	std, err := cmd.Output()
-	return string(std), err
+
+	// clean output
+	outStr := string(std)
+	outStr = strings.Trim(outStr, `"`)
+	outStr = strings.TrimSpace(outStr)
+	return outStr, err
 }
 
 func downloadVideo(videoID string) error {
@@ -161,7 +120,7 @@ func downloadVideo(videoID string) error {
 		"--no-cache-dir",
 		"--restrict-filenames",
 		"-f", "bestaudio",
-		"-o", `"./song_files/%(title)s-%(id)s.%(ext)s"`,
+		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
 	}
 	args = append(args, videoID)
 	cmd := exec.Command("youtube-dl", args...)
@@ -170,25 +129,9 @@ func downloadVideo(videoID string) error {
 }
 
 func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error) {
-
-	var filename string
-
-	g := new(errgroup.Group)
-
-	// get filename
-	g.Go(func() error {
-		var err error
-		filename, err = getVideoThumb(video.ID)
-		return err
-	})
-
 	// download video
-	g.Go(func() error {
-		return downloadVideoThumb(video.ID)
-	})
-
-	if err := g.Wait(); err != nil {
-		// logger.Error("error downloading video", log.Error(err), log.Any("id", video.ID))
+	filename, err := downloadVideoThumb(video.ID)
+	if err != nil {
 		return "", err
 	}
 
@@ -201,65 +144,28 @@ func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error
 	}
 
 	return filename, nil
-
-	// args := []string{
-	// 	"--write-thumbnail",
-	// 	"--skip-download",
-	// }
-	// args = append(args, video.ID)
-	// cmd := exec.Command("youtube-dl", args...)
-	// std, err := cmd.Output()
-	// if err != nil {
-	// 	return "", err
-	// }
-	// rawOutput := string(std)
-
-	// var thumbRegex = regexp.MustCompile(`Writing thumbnail to: (.+?)\n`)
-	// result := thumbRegex.FindStringSubmatch(rawOutput)
-	// if len(result) == 0 {
-	// 	return "", fmt.Errorf("invalid results from download:%s", rawOutput)
-	// }
-	// oldLocation := result[1]
-
-	// ext := filepath.Ext(oldLocation)
-	// sEnc := base64.StdEncoding.EncodeToString([]byte(video.ID))
-	// fileName := filepath.Join(viper.GetString("player.thumb_root"), fmt.Sprintf("%s%s", sEnc, ext))
-
-	// err = os.Rename(oldLocation, fileName)
-	// if err != nil {
-	// 	return "", err
-	// }
-
-	// return fileName, nil
 }
 
-func getVideoThumb(videoID string) (string, error) {
+func downloadVideoThumb(videoID string) (string, error) {
 	args := []string{
 		"--write-thumbnail",
 		"--ignore-errors",
 		"--no-call-home",
 		"--no-cache-dir",
+		"--skip-download",
 		"--restrict-filenames",
-		"--get-filename",
-		"-o", `"./thumb_files/%(title)s-%(id)s.%(ext)s"`,
+		"-o", `thumb_files/%(title)s-%(id)s`,
 	}
 	args = append(args, videoID)
 	cmd := exec.Command("youtube-dl", args...)
 	std, err := cmd.Output()
-	return string(std), err
-}
 
-func downloadVideoThumb(videoID string) error {
-	args := []string{
-		"--write-thumbnail",
-		"--ignore-errors",
-		"--no-call-home",
-		"--no-cache-dir",
-		"--restrict-filenames",
-		"-o", `"./thumb_files/%(title)s-%(id)s.%(ext)s"`,
+	// parse output because I can't find a better way to get thumb name
+	outStr := string(std)
+	var thumbRegex = regexp.MustCompile(`Writing thumbnail to: (.+?)\n`)
+	result := thumbRegex.FindStringSubmatch(outStr)
+	if len(result) == 0 {
+		return "", fmt.Errorf("invalid results from download:%s", outStr)
 	}
-	args = append(args, videoID)
-	cmd := exec.Command("youtube-dl", args...)
-	_, err := cmd.Output()
-	return err
+	return result[1], err
 }
