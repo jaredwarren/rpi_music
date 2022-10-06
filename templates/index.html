@@ -85,7 +85,7 @@
     <a class="btn btn-primary" href="/song/new"><span class="material-symbols-outlined align-middle">
             add_circle
         </span> New</a>
-    <table class="table table-striped table-hover">
+    <table class="table table-striped table-hover" style="margin-bottom: 70px;">
         <thead>
             <tr>
                 <td>Thumb</td>
@@ -179,7 +179,7 @@
 {{define "player"}}
 {{if .CurrentSong}}
 <style>
-    #palyer {
+    #player {
         height: 70px;
         position: fixed;
         bottom: 0;
@@ -193,7 +193,7 @@
         padding: 10px;
     }
 </style>
-<div id="palyer">
+<div id="player">
     <img id="player_thumb" src="{{.CurrentSong.Thumbnail}}" style="height: 50px;">
     <span id="player_title" style="margin-left: 6px;">{{.CurrentSong.Title}}</span>
     <button id="play_btn" class="btn btn-primary" {{if .Player.Playing}}hidden{{end}}  onClick="wsplay(event, '{{.CurrentSong.ID}}')"><span

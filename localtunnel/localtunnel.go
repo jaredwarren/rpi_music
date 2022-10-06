@@ -48,6 +48,7 @@ func Init(logger log.Logger) error {
 	}
 
 	if port == "" {
+		// assume 80 or 443 based on https in config???
 		return fmt.Errorf("local port required")
 	}
 

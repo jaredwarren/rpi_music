@@ -36,21 +36,13 @@
     }
 </script>
 
-<h1>{{.Song.Title}}</h1>
+<h1 id="player.title">{{.Song.Title}}</h1>
 <button id="play_btn" class="btn btn-primary {{if .Player.Playing}}disabled{{end}}" onclick="play()"><span class="material-symbols-outlined align-middle">
     play_circle
 </span></button>
 <button id="stop_btn" class="btn btn-primary {{if not .Player.Playing}}disabled{{end}}" onclick="stop()"><span class="material-symbols-outlined align-middle">
     pause_circle
 </span></button>
-
-<!--
-    TODO: 
-        onchange call volume change (needs created)
-        set init to config (needs passed in)
-
-    <input class="slider" type="range" min="0" max="100" value="50"> -->
-
 {{end}}
 
 {{define "player"}}{{end}}

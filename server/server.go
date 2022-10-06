@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -92,6 +93,8 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	sub.Use(s.requireLoginMiddleware) // TEMP for testing
 
 	sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
+	sub.HandleFunc("/log", s.Log)
+	sub.HandleFunc("/stop", s.StopSongHandler)
 
 	// list songs
 	sub.HandleFunc("/", s.ListSongHandler).Methods(http.MethodGet)
@@ -164,7 +167,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Info(r.RequestURI, log.Any("r", r))
+		// s.logger.Info(r.RequestURI, log.Any("r", r))
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(w, r)
 	})
@@ -281,4 +284,26 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
 	player.Stop()
 	http.Redirect(w, r, "/songs", 301)
+}
+
+func (s *Server) Log(w http.ResponseWriter, r *http.Request) {
+	msg := &Message{}
+	err := json.NewDecoder(r.Body).Decode(&msg)
+	if err != nil {
+		s.logger.Error("body parse error", log.Error(err))
+		s.httpError(w, fmt.Errorf("log|%w", err), http.StatusInternalServerError)
+		return
+	}
+	if level, ok := msg.Data["level"]; ok {
+		switch level {
+		case "warn":
+			s.logger.Warn("log", log.Any("message", msg))
+		case "err":
+			s.logger.Error("log", log.Any("message", msg))
+		default:
+			s.logger.Info("log", log.Any("message", msg))
+		}
+	} else {
+		s.logger.Info("log", log.Any("message", msg))
+	}
 }

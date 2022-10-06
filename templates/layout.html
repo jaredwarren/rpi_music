@@ -47,107 +47,52 @@
         integrity="sha384-pprn3073KE6tl6bjs2QrFaJGz5/SUsLqktiwsUTF55Jfv3qYSDhgCecCxMW52nD2"
         crossorigin="anonymous"></script>
     <script>
-        var socket;
-        window.addEventListener('DOMContentLoaded', () => {
-            socket = new WebSocket("wss://" + window.location.host + "/echo?t={{ .csrfField }}");
-            socket.onopen = function () {
-                console.log("Status: Connected\n");
-            };
-            socket.onmessage = function (e) {
-                var msg = JSON.parse(e.data);
-                if (!msg) {
-                    console.warn("empty message:", e.data);
-                    return;
-                }
-                console.log("Message:", msg.command);
-                console.log(msg);
-                switch (msg.command) {
-                    case "player.play":
-                        player_title.innerHTML = msg.data.title;
-                        player_thumb.setAttribute("src", "/" + msg.data.thumb);
-                        stop_btn.removeAttribute("hidden", null);
-                        play_btn.setAttribute("onclick", "wsplay(event, '" + msg.data.id + "')");
-                        break;
-                    case "player.stop":
-                        play_btn.removeAttribute("hidden", null);
-                        break;
-                    case "download":
-                        // ignore
-                        break;
-                    case "download.done":
-                        window.location.href = '/songs';
-                        // TODO: stop loading
-                        break;
-                    case "toast":
-                        var el = document.getElementById("liveToast");
-                        el.querySelector(".me-auto").innerHTML = msg.data.title || ''
-                        el.querySelector(".text-muted").innerHTML = msg.data.subtitle || ''
-                        el.querySelector(".toast-body").innerHTML = msg.data.text || ''
-                        var toast = new bootstrap.Toast(el, {});
-                        toast.show();
-                        break;
-                    case "error":
-                        console.error(msg);
-                        alert(e.error);
-                        break;
-                     case "ping":
-                        send({
-                            command: "pong",
-                        });
-                        break;
-                    default:
-                        console.error("Unknown command:", msg.command);
-                        break;
-                }
-            };
-        });
-
         function wsplay(e, id) {
             console.log("on play....");
             e.stopPropagation();
+
+            document.getElementById("player").setAttribute("hidden", null)
             play_btn.setAttribute("hidden", null);
-            stop_btn.setAttribute("hidden", null);
-            send({
-                command: "player.play",
-                data: {
-                    song_id: id
-                }
-            });
+            stop_btn.removeAttribute("hidden");
+
+            fetch("/song/" + id + "/play");
+            
+            fetch("/song/" + id + "/json")
+                .then(res => res.json())
+                .then(function (res) {
+                    console.log(res)
+                    document.getElementById("player").removeAttribute("hidden");
+                    document.getElementById("player_title").innerHTML = res.Title
+                    document.getElementById("player_thumb").setAttribute("src", "/" + res.Thumbnail);
+                })
+                .catch(function (e) {
+                    alert("error");
+                    console.error(e);
+                    // This is where you run code if the server returns any errors
+                });
         }
+
         function wsstop() {
-            send({
-                command: "player.stop"
-            });
-            if (play_btn) {
-                play_btn.setAttribute("hidden", null);
-            }
-            if (stop_btn) {
-                stop_btn.setAttribute("hidden", null);
-            }
+            fetch("/stop")
+                .then(function (res) {
+                    document.getElementById("player").setAttribute("hidden", null)
+                })
+                .catch(function (e) {
+                    alert("error");
+                    console.error(e);
+                    // This is where you run code if the server returns any errors
+                });
         }
 
         function send(msg) {
-            if (!socket) {
-                console.warn("no socket")
-                return false;
-            }
-            if (!socket.OPEN) {
-                console.warn("socket not open")
-                return false;
-            }
-            if (socket.CONNECTING) {
-                console.warn("socket connecting")
-                return false;
-            }
-            if (!msg || !msg.command) {
-                return false;
-            }
-            console.log(msg);
-            try {
-                socket.send(JSON.stringify(msg));
-            } catch (error) {
-                console.warn(error);
-            }
+            fetch("/log", {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(msg)
+            })
             return true;
         }
     </script>
