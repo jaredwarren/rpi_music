@@ -64,12 +64,12 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	r := mux.NewRouter()
 	r.Use(s.loggingMiddleware)
 	r.Use(mux.CORSMethodMiddleware(r))
-	r.Use(CorsMiddleware) // for now all all
+	// r.Use(CorsMiddleware) // for now all all
 
 	// Public Methods
 	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
 	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet, http.MethodOptions)
-	// r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
+	r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
 	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
 	// setup graphql
@@ -89,7 +89,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// login-required methods
 	sub := r.PathPrefix("/").Subrouter()
-	// sub.Use(s.requireLoginMiddleware)// TEMP for testing
+	sub.Use(s.requireLoginMiddleware) // TEMP for testing
 
 	sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
 
@@ -126,6 +126,14 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	sub.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	sub.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir(viper.GetString("player.song_root")))))
 	sub.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir(viper.GetString("player.thumb_root")))))
+
+	rawsub := sub.PathPrefix("/raw").Subrouter()
+	rawsub.HandleFunc("", s.RawHandler)
+
+	// Handle everything else
+	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/songs", 301)
+	})
 
 	// Create the HTML Server
 	htmlServer := HTMLServer{
@@ -194,11 +202,19 @@ type Server struct {
 }
 
 func New(db db.DBer, l log.Logger) *Server {
+	var dl downloader.Downloader
+	if viper.GetString("downloader") == "ytdl" {
+		dl = &downloader.YoutubeDownloader{}
+		l.Info("using 'ytdl' downloader")
+	} else {
+		dl = &downloader.YoutubeDLDownloader{}
+		l.Info("using 'youtube-dl' downloader")
+	}
+
 	return &Server{
-		db:     db,
-		logger: l,
-		// downloader: &downloader.YoutubeDownloader{}, // TODO: get this from config
-		downloader: &downloader.YoutubeDLDownloader{}, // TODO: get this from config
+		db:         db,
+		logger:     l, // TODO: move this to context
+		downloader: dl,
 	}
 }
 
@@ -207,7 +223,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Te
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	buf := new(bytes.Buffer)
 	if err := tpl.Execute(buf, data); err != nil {
-		s.logger.Error("template render error", log.Error(err))
+		s.logger.Error("template render error", log.Error(err), log.Any("data", data))
 		return
 	}
 	w.Write(buf.Bytes())

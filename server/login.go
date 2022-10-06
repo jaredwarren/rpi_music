@@ -87,8 +87,7 @@ func (s *Server) requireLoginMiddleware(next http.Handler) http.Handler {
 		// bypass auth on wss:... because it doesn't work on Android
 		if !strings.HasPrefix(r.RequestURI, "/echo") {
 			if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
-				s.logger.Warn("[AUTH] access denied", log.Any("req", r))
-				http.Error(w, "Forbidden", http.StatusForbidden)
+				http.Redirect(w, r, "/login", 301)
 				return
 			}
 		}

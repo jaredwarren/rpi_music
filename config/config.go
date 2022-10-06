@@ -68,4 +68,6 @@ func SetDefaults() {
 	viper.Set("player.volume", 100)
 	viper.Set("restart", false)
 	viper.Set("allow_override", true)
+
+	viper.Set("downloader", "youtube-dl")
 }

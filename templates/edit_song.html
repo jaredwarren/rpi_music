@@ -152,7 +152,7 @@
 <div class="container h-100">
     <div class="card row h-100 justify-content-center align-items-center">
         <div class="card-body">
-            <form onsubmit="return submitHandler(event)" action="/song/{{.Song.ID}}" method="post">
+            <form action="/song/{{.Song.ID}}" method="post">
                 {{ .csrfField }}
                 <fieldset>
                     <legend>Enter New Song</legend>
@@ -167,7 +167,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="thumb" class="form-label">Thumb</label>
-                        <input class="form-control" id="thumb" name="thumb" type="url" value="{{.Song.Thumb}}">
+                        <input class="form-control" id="thumb" name="thumb" type="url" value="{{.Song.Thumbnail}}">
                     </div>
                     <button type="submit" class="btn btn-primary"><span
                             class="material-symbols-outlined align-middle">playlist_add</span> Add</button>

@@ -16,6 +16,7 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/vektah/gqlparser/v2 v2.5.1
 	go.etcd.io/bbolt v1.3.6
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 )
 
 require (
