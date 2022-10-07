@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gorilla/csrf"
@@ -68,28 +67,26 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	session.Values["authenticated"] = true
 	session.Save(r, w)
 
-	http.Redirect(w, r, "/songs", 301)
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
+	s.logger.Debug("logout, Bye!")
 	session, _ := store.Get(r, CookieName)
 
 	// Revoke users authentication
 	session.Values["authenticated"] = false
 	session.Save(r, w)
-	http.Redirect(w, r, "/login", 301)
+	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
 func (s *Server) requireLoginMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := store.Get(r, CookieName)
-		// TODO: fix this
-		// bypass auth on wss:... because it doesn't work on Android
-		if !strings.HasPrefix(r.RequestURI, "/echo") {
-			if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
-				http.Redirect(w, r, "/login", 301)
-				return
-			}
+		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+			s.logger.Debug("invalid session", log.Any("auth", auth), log.Any("ok", ok))
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
 		}
 		next.ServeHTTP(w, r)
 	})

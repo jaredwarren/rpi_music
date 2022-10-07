@@ -19,7 +19,10 @@
 
 {{define "main"}}
 <script>
+    var myModal;
     window.addEventListener('DOMContentLoaded', () => {
+        myModal = new bootstrap.Modal(document.getElementById("exampleModal"), {});
+
         if (!("NDEFReader" in window)) {
             console.log("Web NFC is not available. Use Chrome on Android.");
         }
@@ -49,11 +52,7 @@
             console.log("Argh! " + error);
         }
     });
-    var myModal;
-    window.addEventListener("DOMContentLoaded", async () => {
-        myModal = new bootstrap.Modal(document.getElementById("exampleModal"), {});
-    });
-
+    
     function showSongInfo(e) {
         if (e.dataset.whatever) {
             console.log(e.dataset.whatever);

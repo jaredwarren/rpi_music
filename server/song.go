@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/log"
@@ -114,12 +113,6 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
-	if true {
-		s.logger.Debug("start download")
-		time.Sleep(10 * time.Second)
-		s.logger.Debug("done download")
-		return
-	}
 	err := r.ParseForm()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
@@ -184,14 +177,10 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/songs", 301)
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
-	if true {
-		fmt.Println("------ - - - - ")
-		return
-	}
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
@@ -258,7 +247,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/songs", 301)
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -273,7 +262,7 @@ func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/songs", 301)
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {

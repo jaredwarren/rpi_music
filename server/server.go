@@ -10,13 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
-	"github.com/jaredwarren/rpi_music/graph"
-	"github.com/jaredwarren/rpi_music/graph/generated"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
@@ -64,7 +60,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// Setup Handlers
 	r := mux.NewRouter()
 	r.Use(s.loggingMiddleware)
-	r.Use(mux.CORSMethodMiddleware(r))
+	// r.Use(mux.CORSMethodMiddleware(r))
 	// r.Use(CorsMiddleware) // for now all all
 
 	// Public Methods
@@ -74,15 +70,15 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
 	// setup graphql
-	r.HandleFunc("/playground", playground.Handler("GraphQL playground", "/query"))
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{
-		Resolvers: &graph.Resolver{
-			Db: cfg.Db,
-		},
-	}))
-	graphql := r.PathPrefix("/graphql").Subrouter()
-	// graphql.Use(CorsMiddleware)
-	graphql.Handle("", srv).Methods(http.MethodPost, http.MethodGet, http.MethodOptions).Name("graphql")
+	// r.HandleFunc("/playground", playground.Handler("GraphQL playground", "/query"))
+	// srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{
+	// 	Resolvers: &graph.Resolver{
+	// 		Db: cfg.Db,
+	// 	},
+	// }))
+	// graphql := r.PathPrefix("/graphql").Subrouter()
+	// // graphql.Use(CorsMiddleware)
+	// graphql.Handle("", srv).Methods(http.MethodPost, http.MethodGet, http.MethodOptions).Name("graphql")
 
 	// if viper.GetBool("csrf.enabled") {
 	// 	r.Use(s.requireCSRF)
@@ -90,7 +86,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// login-required methods
 	sub := r.PathPrefix("/").Subrouter()
-	sub.Use(s.requireLoginMiddleware) // TEMP for testing
+	sub.Use(s.requireLoginMiddleware)
 
 	sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
 	sub.HandleFunc("/log", s.Log)
@@ -135,7 +131,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// Handle everything else
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/songs", 301)
+		http.Redirect(w, r, "/songs", http.StatusFound)
 	})
 
 	// Create the HTML Server
@@ -167,7 +163,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// s.logger.Info(r.RequestURI, log.Any("r", r))
+		s.logger.Debug(r.RequestURI, log.Any("r", r))
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(w, r)
 	})
@@ -278,12 +274,12 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/songs", 301)
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
 	player.Stop()
-	http.Redirect(w, r, "/songs", 301)
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) Log(w http.ResponseWriter, r *http.Request) {

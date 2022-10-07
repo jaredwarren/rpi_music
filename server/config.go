@@ -76,5 +76,5 @@ func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/songs", 301)
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
