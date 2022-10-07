@@ -18,8 +18,22 @@
 {{end}}
 
 {{define "main"}}
+<style>
+    .bd-example-modal-lg .modal-dialog {
+        display: table;
+        position: relative;
+        margin: 0 auto;
+        top: calc(50% - 24px);
+    }
+
+    .bd-example-modal-lg .modal-dialog .modal-content {
+        background-color: transparent;
+        border: none;
+    }
+</style>
 <h1>{{.Song.Title}}</h1>
 <script>
+    var loadingModal;
     // Add a global error event listener early on in the page load, to help ensure that browsers
     // which don't support specific functionality still end up displaying a meaningful message.
     window.addEventListener('error', function (error) {
@@ -65,6 +79,8 @@
     }
     log = ChromeSamples.log;
     window.addEventListener("DOMContentLoaded", async () => {
+        loadingModal = new bootstrap.Modal(document.getElementById("loading_modal"), {});
+
         if (!("NDEFReader" in window)) {
             ChromeSamples.log("Web NFC is not available. Use Chrome on Android.");
             return
@@ -86,19 +102,21 @@
         // }
     });
 
-    function submitHandler(e) {
-        e.stopPropagation();
-        console.log("on submit");
-        console.warn("TODO: start loading here...");
-        // hide button, or show loading, etc
-        send({
-            command: "download",
-            data: {
-                url: url.value,
-                rfid: rfid.value,
-                thumb: thumb.value
-            }
-        });
+    function submitHandler(e, form) {
+        loadingModal.show();
+        fetch(form.action, { method: 'post', body: new FormData(form) })
+            .then(function (res) {
+                // loadingModal.hide();
+                window.location = "/songs";
+            })
+            .catch(function (e) {
+                alert("error");
+                console.error(e);
+                // This is where you run code if the server returns any errors
+            });
+
+        console.log('We send post asynchronously (AJAX)');
+        e.preventDefault();
         return false;
     }
     async function onbtnclick() {
@@ -152,7 +170,7 @@
 <div class="container h-100">
     <div class="card row h-100 justify-content-center align-items-center">
         <div class="card-body">
-            <form action="/song/{{.Song.ID}}" method="post">
+            <form action="/song/{{.Song.ID}}" method="post" onsubmit="submitHandler(event,this)">
                 {{ .csrfField }}
                 <fieldset>
                     <legend>Enter New Song</legend>
@@ -184,6 +202,17 @@
         </div>
     </div>
     <hr>
+</div>
+
+<div id="loading_modal" class="modal fade bd-example-modal-lg" data-backdrop="static" data-keyboard="false"
+    tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content" style="width: 48px">
+            <div class="spinner-border text-light" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    </div>
 </div>
 
 
