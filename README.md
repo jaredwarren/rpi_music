@@ -28,7 +28,6 @@ copy player.service to: `/lib/systemd/system/player.service`
   - `amixer -D pulse sset Master 5%+`?
 - [ ] light or sound to show status
   - `speaker-test -t sine -f 1000 -l 1`
-- [ ] keep alive when submitting new song
 - [ ] clean/delete logs, view logs in ui
 - [ ] automate push build to pi, restart
 - [ ] Documentation and cleanup

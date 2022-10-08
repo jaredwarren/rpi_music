@@ -60,7 +60,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// Setup Handlers
 	r := mux.NewRouter()
 	r.Use(s.loggingMiddleware)
-	// r.Use(mux.CORSMethodMiddleware(r))
+	r.Use(mux.CORSMethodMiddleware(r))
 	// r.Use(CorsMiddleware) // for now all all
 
 	// Public Methods
@@ -88,7 +88,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	sub := r.PathPrefix("/").Subrouter()
 	sub.Use(s.requireLoginMiddleware)
 
-	sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
+	// sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
 	sub.HandleFunc("/log", s.Log)
 	sub.HandleFunc("/stop", s.StopSongHandler)
 
@@ -98,9 +98,9 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 	// Song
 	ssub := sub.PathPrefix("/song").Subrouter()
-	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongFormHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("", s.NewSongHandler).Methods(http.MethodPost)
-	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)
+	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongFormHandler).Methods(http.MethodGet) // GET /song/new
+	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)    // POST /song/new
 	ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
 	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
