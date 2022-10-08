@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <ul class="nav nav-pills">
         <li class="nav-item">
-            <a class="nav-link active" href="#"><span
+            <a class="nav-link disabled" href="#"><span
                     class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
         </li>
         <li class="nav-item">
@@ -52,7 +52,7 @@
             console.log("Argh! " + error);
         }
     });
-    
+
     function showSongInfo(e) {
         if (e.dataset.whatever) {
             console.log(e.dataset.whatever);
@@ -80,16 +80,28 @@
         }
     }
 </script>
+
+<style>
+    #add-fab {
+        position: fixed;
+        bottom: 40px;
+        right: 10px;
+        --bs-btn-border-radius: 2rem;
+    }
+</style>
+
+<a id="add-fab" class="btn btn-primary btn-lg shadow-lg p-3 mb-5" href="/song/new"><span
+        class="material-symbols-outlined align-middle">
+        add_circle
+    </span> New</a>
+
 <div class="container">
-    <a class="btn btn-primary" href="/song/new"><span class="material-symbols-outlined align-middle">
-            add_circle
-        </span> New</a>
-    <table class="table table-striped table-hover" style="margin-bottom: 70px;">
+    <table class="table table-striped table-hover" style="margin-bottom: 170px;">
         <thead>
             <tr>
                 <td>Thumb</td>
                 <td>Title</td>
-                <td>Delete</td>
+                <td>Play</td>
             </tr>
         </thead>
         <tbody>
@@ -97,12 +109,12 @@
             <tr id="{{$s.RFID}}" onclick="showSongInfo(this)" data-whatever="{{$s.ID}}">
                 <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
                 <td>{{$s.Title}}</td>
-                <td class="align-middle"><button onClick="wsplay(event, '{{$s.ID}}')" class="btn btn-outline-primary" href="/song/{{$s.ID}}/play"><span
-                            class="material-symbols-outlined align-middle">play_circle
+                <td class="align-middle"><button onClick="wsplay(event, '{{$s.ID}}')" class="btn btn-outline-primary"
+                        href="/song/{{$s.ID}}/play"><span class="material-symbols-outlined align-middle">play_circle
                         </span></button></td>
             </tr>
             {{end}}
-            
+
         </tbody>
     </table>
 </div>
@@ -195,8 +207,8 @@
 <div id="player">
     <img id="player_thumb" src="{{.CurrentSong.Thumbnail}}" style="height: 50px;">
     <span id="player_title" style="margin-left: 6px;">{{.CurrentSong.Title}}</span>
-    <button id="play_btn" class="btn btn-primary" {{if .Player.Playing}}hidden{{end}}  onClick="wsplay(event, '{{.CurrentSong.ID}}')"><span
-            class="material-symbols-outlined align-middle">
+    <button id="play_btn" class="btn btn-primary" {{if .Player.Playing}}hidden{{end}}
+        onClick="wsplay(event, '{{.CurrentSong.ID}}')"><span class="material-symbols-outlined align-middle">
             play_circle
         </span></button>
     <button id="stop_btn" class="btn btn-primary" {{if not .Player.Playing}}hidden{{end}} onclick="wsstop()"><span
