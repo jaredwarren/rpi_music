@@ -197,10 +197,10 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 
 	url := r.PostForm.Get("url")
 	rfid := r.PostForm.Get("rfid")
-	rfid = strings.ReplaceAll(rfid, ":", "")
+	rfid = strings.ReplaceAll(rfid, ":", "") // added because js code is bad and sometimes sends rfid without ':'
 
-	// Delete if blank
-	if rfid == "" || url == "" {
+	// Delete if url blank
+	if url == "" {
 		err := s.db.DeleteSong(key)
 		if err != nil {
 			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)

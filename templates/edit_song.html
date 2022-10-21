@@ -89,7 +89,12 @@
 
     function submitHandler(e, form) {
         loadingModal.show();
-        fetch(form.action, { method: 'post', body: new FormData(form) })
+
+        fetch(form.action, { 
+            method: 'post', 
+            body: data,
+            mode: 'no-cors',
+         })
             .then(function (res) {
                 window.location = "/songs";
             })
@@ -99,7 +104,6 @@
                 // This is where you run code if the server returns any errors
             });
 
-        console.log('We send post asynchronously (AJAX)');
         e.preventDefault();
         return false;
     }

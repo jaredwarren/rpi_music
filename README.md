@@ -21,8 +21,8 @@ copy player.service to: `/lib/systemd/system/player.service`
 ----------------------------------------
 
 # TODO #
+- [ ] Connect to Bluetooth speaker!
 - [ ] see if possible to play without downloading as a backup
-- [ ] find a better file convention, maybe use youtube video id. map rfid <-> video id
 - [ ] create system for assigning cards without phone
 - [ ] volume control!
   - `amixer -D pulse sset Master 5%+`?
@@ -30,9 +30,8 @@ copy player.service to: `/lib/systemd/system/player.service`
   - `speaker-test -t sine -f 1000 -l 1`
 - [ ] clean/delete logs, view logs in ui
 - [ ] automate push build to pi, restart
-- [ ] Documentation and cleanup
-- [ ] add more to config page, like...
-- [ ] fix thumbnail's loading slowly
+- [ ] add more to config page
+- [ ] Initialize/setup, what if starting from new pi
  
 ## Playlist
 - [ ] Playlist - create, edit, update local play list
@@ -40,7 +39,7 @@ copy player.service to: `/lib/systemd/system/player.service`
 - [ ] player queue, add mode to enqueue songs
  
 ## Case
-- [ ] add stl's to repo (move to separate repo?)
+- [ ] add stl's to repo
 - [ ] add USB port to stl to allow power to speaker
  
 ## Nice to have

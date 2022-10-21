@@ -52,15 +52,21 @@ func main() {
 	}()
 
 	// Init DB
-	db, err := db.NewSongDB(DBPath)
+	sdb, err := db.NewSongDB(DBPath)
 	if err != nil {
 		logger.Panic("error opening db", log.Error(err))
 	}
-	defer db.Close()
+	defer sdb.Close()
+
+	// Migrate DB
+	db.Up(sdb)
+	if err != nil {
+		logger.Panic("error opening db", log.Error(err))
+	}
 
 	// Init RFID
 	if viper.GetBool("rfid-enabled") {
-		r := rfid.InitRFIDReader(db, logger)
+		r := rfid.InitRFIDReader(sdb, logger)
 		defer r.Close()
 	}
 
@@ -69,7 +75,7 @@ func main() {
 		Host:         viper.GetString("host"),
 		ReadTimeout:  350 * time.Second,
 		WriteTimeout: 350 * time.Second,
-		Db:           db,
+		Db:           sdb,
 		Logger:       logger,
 	})
 	defer htmlServer.StopHTTPServer()
