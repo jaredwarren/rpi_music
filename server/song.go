@@ -2,15 +2,22 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
+	"github.com/spf13/viper"
 )
 
 // JSONHandler
@@ -113,62 +120,36 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
+	var err error
+	err = r.ParseMultipartForm(32 << 20)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
 	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
 
-	url := r.PostForm.Get("url")
-	if url == "" {
-		s.httpError(w, fmt.Errorf("need url"), http.StatusBadRequest)
-		return
-	}
+	var song *model.Song
 
-	rfid := r.PostForm.Get("rfid")
-	if rfid == "" {
-		s.httpError(w, fmt.Errorf("need rfid"), http.StatusBadRequest)
-		return
-	}
-
-	rfid = strings.ReplaceAll(rfid, ":", "")
-
-	overwrite := true // TODO: make param, or config
-	if !overwrite {
-		// check for duplicates
-		exists, err := s.db.SongExists(rfid)
+	vtype := r.PostForm.Get("type")
+	switch vtype {
+	case "upload":
+		song, err = s.uploadSongHandler(r)
 		if err != nil {
-			s.httpError(w, fmt.Errorf("NewSongHandler|db.View|%w", err), http.StatusInternalServerError)
+			s.logger.Error(err.Error())
+			s.httpError(w, err, http.StatusBadRequest)
 			return
 		}
-		if exists {
-			// TODO: what to do here?
+	case "download":
+		song, err = s.downloadSongHandler(r)
+		if err != nil {
+			s.logger.Error(err.Error())
+			s.httpError(w, err, http.StatusBadRequest)
 			return
 		}
-	}
-
-	song := &model.Song{
-		ID:   rfid,
-		URL:  url,
-		RFID: rfid,
-	}
-
-	// 1. Download song
-	file, video, err := s.downloader.DownloadVideo(url, s.logger)
-	if err != nil {
-		s.httpError(w, fmt.Errorf("NewSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
+	default:
+		s.httpError(w, fmt.Errorf("invalid type|%s", vtype), http.StatusBadRequest)
 		return
 	}
-	tmb, err := s.downloader.DownloadThumb(video)
-	if err != nil {
-		s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
-		// ignore err
-	}
-
-	song.Thumbnail = tmb
-	song.FilePath = file
-	song.Title = video.Title
 
 	// 2. Store
 	err = s.db.UpdateSong(song)
@@ -178,6 +159,103 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/songs", http.StatusFound)
+}
+
+func (s *Server) uploadSongHandler(r *http.Request) (*model.Song, error) {
+	rfid := r.PostForm.Get("rfid")
+	if rfid == "" {
+		return nil, fmt.Errorf("need rfid")
+	}
+	rfid = strings.ReplaceAll(rfid, ":", "")
+
+	title := r.PostForm.Get("title")
+
+	song := &model.Song{
+		ID:    rfid,
+		Title: title,
+		RFID:  rfid,
+	}
+
+	// download image
+	thumb := r.PostForm.Get("thumb")
+	if thumb != "" {
+		thumbFile, err := downloadThumbFile(thumb)
+		if err != nil {
+			s.logger.Error(err.Error())
+			return nil, fmt.Errorf("thumbCopy|%w", err)
+		}
+		song.Thumbnail = thumbFile
+	}
+
+	// Handle Upload
+	file, handler, err := r.FormFile("upload")
+	if err != nil {
+		s.logger.Error(err.Error())
+		return nil, fmt.Errorf("FormFile|%w", err)
+	}
+	defer file.Close()
+
+	fileName := filepath.Join(viper.GetString("player.song_root"), handler.Filename)
+	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return nil, fmt.Errorf("OpenFile|%w", err)
+	}
+	defer f.Close()
+	_, err = io.Copy(f, file)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return nil, fmt.Errorf("Copy|%w", err)
+	}
+
+	return song, nil
+}
+
+func (s *Server) downloadSongHandler(r *http.Request) (*model.Song, error) {
+	rfid := r.PostForm.Get("rfid")
+	if rfid == "" {
+		return nil, fmt.Errorf("need rfid")
+	}
+	rfid = strings.ReplaceAll(rfid, ":", "")
+
+	url := r.PostForm.Get("url")
+	if url == "" {
+		return nil, fmt.Errorf("missing url")
+	}
+
+	song := &model.Song{
+		ID:   rfid,
+		RFID: rfid,
+		URL:  url,
+	}
+
+	// 1. Download song
+	file, video, err := s.downloader.DownloadVideo(url, s.logger)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return nil, fmt.Errorf("DownloadVideo|%w", err)
+	}
+
+	thumb := r.PostForm.Get("thumb")
+	if thumb != "" {
+		thumbFile, err := downloadThumbFile(thumb)
+		if err != nil {
+			s.logger.Error(err.Error())
+			return nil, fmt.Errorf("thumbCopy|%w", err)
+		}
+		song.Thumbnail = thumbFile
+	} else {
+		tmb, err := s.downloader.DownloadThumb(video)
+		if err != nil {
+			s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
+			// ignore err
+		}
+		song.Thumbnail = tmb
+	}
+	song.FilePath = file
+	song.Title = video.Title
+
+	return song, nil
 }
 
 func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -199,13 +277,9 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	rfid := r.PostForm.Get("rfid")
 	rfid = strings.ReplaceAll(rfid, ":", "") // added because js code is bad and sometimes sends rfid without ':'
 
-	// Delete if url blank
-	if url == "" {
-		err := s.db.DeleteSong(key)
-		if err != nil {
-			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
-			return
-		}
+	// Delete if rfid blank
+	if rfid == "" {
+		s.httpError(w, fmt.Errorf("need rfid"), http.StatusBadRequest)
 		return
 	}
 
@@ -296,4 +370,42 @@ func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tpl := template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles(files...))
 	s.render(w, r, tpl, fullData)
+}
+
+func downloadThumbFile(URL string) (string, error) {
+	//Get the response bytes from the url
+	response, err := http.Get(URL)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != 200 {
+		return "", errors.New("Received non 200 response code")
+	}
+	//Create a empty file
+	fileUrl, err := url.Parse(URL)
+	if err != nil {
+		return "", err
+	}
+	segments := strings.Split(fileUrl.Path, "/")
+	fileName := segments[len(segments)-1]
+	if fileName == "" {
+		fileName = uuid.New().String()
+	}
+	fileName = filepath.Join(viper.GetString("player.thumb_root"), fileName)
+
+	file, err := os.Create(fileName)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	//Write the bytes to the fiel
+	_, err = io.Copy(file, response.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return fileName, nil
 }

@@ -78,7 +78,7 @@ https://fonts.google.com/icons
 `journalctl -e -u player.service`
 
 ### Restart service?
-`systemctl restart player.service`
+`sudo systemctl restart player.service`
 
 
 

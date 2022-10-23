@@ -90,22 +90,30 @@
     function submitHandler(e, form) {
         loadingModal.show();
 
-        fetch(form.action, { 
-            method: 'post', 
-            body: data,
-            mode: 'no-cors',
-         })
-            .then(function (res) {
-                window.location = "/songs";
-            })
-            .catch(function (e) {
-                alert("error");
-                console.error(e);
-                // This is where you run code if the server returns any errors
-            });
+        // var data = new FormData();
+        // data.append("KEY", "VALUE");
+        // data.append("gorilla.csrf.Token", "070902ae-e1d8-4bfe-be82-4d7320d5bf2d");
+        // data.append("url", "https://www.youtube.com/watch?v=-fDKdtZGCJM");
+        // data.append("rfid", "12:46:05: c4");
+        // data.append("thumb: ");
+        // fetch("URL", { method: "POST", body: data });
 
-        e.preventDefault();
-        return false;
+        // fetch(form.action, { 
+        //     method: 'post', 
+        //     body: data,
+        //     mode: 'no-cors',
+        //  })
+        //     .then(function (res) {
+        //         window.location = "/songs";
+        //     })
+        //     .catch(function (e) {
+        //         alert("error");
+        //         console.error(e);
+        //         // This is where you run code if the server returns any errors
+        //     });
+
+        // e.preventDefault();
+        return true;
     }
     async function onbtnclick() {
         send({
@@ -158,38 +166,92 @@
 <div class="container h-100">
     <div class="card row h-100 justify-content-center align-items-center">
         <div class="card-body">
-            <form action="/song/{{.Song.ID}}" method="post" onsubmit="submitHandler(event,this)">
-                {{ .csrfField }}
-                <fieldset>
-                    <legend>Enter New Song</legend>
-                    <div class="mb-3">
-                        <label for="url" class="form-label">URL:</label>
-                        <input class="form-control" id="url" name="url" type="url" value="{{.Song.URL}}" required
-                            placeholder="youtube.com">
-                    </div>
-                    <div class="mb-3">
-                        <label for="rfid" class="form-label">RFID</label>
-                        <input class="form-control" id="rfid" name="rfid" type="text" value="{{.Song.RFID}}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="thumb" class="form-label">Thumb</label>
-                        <input class="form-control" id="thumb" name="thumb" type="url" value="{{.Song.Thumbnail}}">
-                    </div>
-                    <button type="submit" class="btn btn-primary"><span
-                            class="material-symbols-outlined align-middle">playlist_add</span> Add</button>
-                </fieldset>
-                <hr>
-                <div class="form-group">
-                    <small id="lc" class="form-text text-muted">
-                        <pre id="log" style="white-space: pre-wrap;"></pre>
-                    </small>
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#home"
+                        type="button" role="tab" aria-controls="home" aria-selected="true">Youtube</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile"
+                        type="button" role="tab" aria-controls="profile" aria-selected="false">Upload</button>
+                </li>
+            </ul>
+            <div class="tab-content" id="myTabContent">
+                <div class="tab-pane fade show active" id="home" role="tabpanel" aria-labelledby="home-tab">
+                    <form enctype="multipart/form-data" action="/song/{{.Song.ID}}" method="post"
+                        onsubmit="submitHandler(event,this)">
+                        {{ .csrfField }}
+                        <fieldset>
+                            <input type="hidden" name="type" value="download" />
+                            <legend>Enter New Song</legend>
+                            <div class="mb-3">
+                                <label for="url" class="form-label">URL:</label>
+                                <input class="form-control" id="url" name="url" type="url" value="{{.Song.URL}}"
+                                    placeholder="youtube.com" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="rfid" class="form-label">RFID</label>
+                                <input class="form-control" id="rfid" name="rfid" type="text" value="{{.Song.RFID}}"
+                                    required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="thumb" class="form-label">Thumb</label>
+                                <input class="form-control" id="thumb" name="thumb" type="url"
+                                    value="{{.Song.Thumbnail}}">
+                            </div>
+                            <button type="submit" class="btn btn-primary"><span
+                                    class="material-symbols-outlined align-middle">playlist_add</span> Add</button>
+                        </fieldset>
+                        <hr>
+                        <div class="form-group">
+                            <small id="lc" class="form-text text-muted">
+                                <pre id="log" style="white-space: pre-wrap;"></pre>
+                            </small>
+                        </div>
+                    </form>
                 </div>
-            </form>
+                <div class="tab-pane fade" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+                    <form enctype="multipart/form-data" action="/song/{{.Song.ID}}" method="post"
+                        onsubmit="submitHandler(event,this)">
+                        {{ .csrfField }}
+                        <fieldset>
+                            <input type="hidden" name="type" value="upload"/>
+                            <legend>Enter New Song</legend>
+                            <div class="mb-3">
+                                <label for="title" class="form-label">Title:</label>
+                                <input class="form-control" id="title" name="title" type="text" value="{{.Song.Title}}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="upload" class="form-label">File:</label>
+                                <input class="form-control" type="file" id="upload" name="upload" required />
+                            </div>
+                            <div class="mb-3">
+                                <label for="rfid" class="form-label">RFID</label>
+                                <input class="form-control" id="rfid" name="rfid" type="text" value="{{.Song.RFID}}"
+                                    required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="thumb" class="form-label">Thumb</label>
+                                <input class="form-control" id="thumb" name="thumb" type="url"
+                                    value="{{.Song.Thumbnail}}">
+                            </div>
+                            <button type="submit" class="btn btn-primary"><span
+                                    class="material-symbols-outlined align-middle">playlist_add</span> Add</button>
+                        </fieldset>
+                        <hr>
+                        <div class="form-group">
+                            <small id="lc" class="form-text text-muted">
+                                <pre id="log" style="white-space: pre-wrap;"></pre>
+                            </small>
+                        </div>
+                    </form>
+                </div>
+            </div>
             <button onclick="onbtnclick()" id="scanButton1" class="btn btn-primary btn-sm"><span
                     class="material-symbols-outlined align-middle">nfc</span> NFC</button>
         </div>
     </div>
-</div>  
+</div>
 
 <div id="loading_modal" class="modal fade bd-example-modal-lg" data-backdrop="static" data-keyboard="false"
     tabindex="-1">
