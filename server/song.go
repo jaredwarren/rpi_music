@@ -111,7 +111,7 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 		TemplateTag: s.GetToken(w, r),
 	}
 	files := []string{
-		"templates/edit_song.html",
+		"templates/new_song.html",
 		"templates/layout.html",
 	}
 	// TODO:  maybe these would be better as objects
@@ -123,10 +123,12 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	err = r.ParseMultipartForm(32 << 20)
 	if err != nil {
+		s.logger.Error(err.Error())
 		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
 	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
+	return
 
 	var song *model.Song
 
