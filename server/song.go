@@ -128,7 +128,6 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
-	return
 
 	var song *model.Song
 

@@ -69,26 +69,10 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
 	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
-	// setup graphql
-	// r.HandleFunc("/playground", playground.Handler("GraphQL playground", "/query"))
-	// srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{
-	// 	Resolvers: &graph.Resolver{
-	// 		Db: cfg.Db,
-	// 	},
-	// }))
-	// graphql := r.PathPrefix("/graphql").Subrouter()
-	// // graphql.Use(CorsMiddleware)
-	// graphql.Handle("", srv).Methods(http.MethodPost, http.MethodGet, http.MethodOptions).Name("graphql")
-
-	// if viper.GetBool("csrf.enabled") {
-	// 	r.Use(s.requireCSRF)
-	// }
-
 	// login-required methods
 	sub := r.PathPrefix("/").Subrouter()
-	sub.Use(s.requireLoginMiddleware)
+	// sub.Use(s.requireLoginMiddleware)
 
-	// sub.HandleFunc("/echo", s.HandleWS).Methods(http.MethodGet)
 	sub.HandleFunc("/log", s.Log)
 	sub.HandleFunc("/stop", s.StopSongHandler)
 
