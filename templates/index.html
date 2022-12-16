@@ -63,7 +63,7 @@
                     document.getElementById("exampleModalLabel").innerHTML = res.Title
                     document.getElementById("exampleModalVideo").setAttribute("poster", "/" + res.Thumbnail);
                     document.getElementById("exampleModalVideo").setAttribute("src", "/" + res.FilePath);
-                    document.getElementById("exampleModalRFID").setAttribute("value", res.RFID);
+                    document.getElementById("exampleModalID").setAttribute("value", res.ID);
                     document.getElementById("exampleModalYoutube").setAttribute("value", res.URL);
                     document.getElementById("exampleModalYoutubeLink").setAttribute("href", res.URL);
                     document.getElementById("exampleModalEditLink").setAttribute("href", "/song/" + res.ID);
@@ -106,7 +106,7 @@
         </thead>
         <tbody>
             {{range $index, $s := .Songs}}
-            <tr id="{{$s.RFID}}" onclick="showSongInfo(this)" data-whatever="{{$s.ID}}">
+            <tr id="{{$s.ID}}" onclick="showSongInfo(this)" data-whatever="{{$s.ID}}">
                 <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
                 <td>{{$s.Title}}</td>
                 <td class="align-middle"><button onClick="wsplay(event, '{{$s.ID}}')" class="btn btn-outline-primary"
@@ -132,7 +132,7 @@
                 <form>
                     <div class="form-group">
                         <div class="input-group mb-3">
-                            <input id="exampleModalRFID" type="text" class="form-control"
+                            <input id="exampleModalID" type="text" class="form-control"
                                 placeholder="Recipient's username" aria-label="Recipient's username"
                                 aria-describedby="button-addon2" disabled>
                             <button class="btn btn-outline-secondary" type="button" id="button-addon2"><span

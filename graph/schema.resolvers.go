@@ -89,7 +89,7 @@ func (r *queryResolver) Links(ctx context.Context) ([]*model.Link, error) {
 
 // Songs is the resolver for the songs field.
 func (r *queryResolver) Songs(ctx context.Context) ([]*model.Song, error) {
-	dbsongs, err := r.Db.ListSongs()
+	dbsongs, err := r.Db.ListSongsV2()
 	songs := make([]*model.Song, 0, len(dbsongs))
 	if err != nil {
 		// s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
@@ -100,7 +100,6 @@ func (r *queryResolver) Songs(ctx context.Context) ([]*model.Song, error) {
 		songs = append(songs, &model.Song{
 			ID:       s.ID,
 			Title:    &s.Title,
-			Rfid:     &s.RFID,
 			URL:      s.URL,
 			Thumb:    &s.Thumbnail,
 			FilePath: &s.FilePath,

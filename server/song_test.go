@@ -28,7 +28,7 @@ func TestListSongHandler(t *testing.T) {
 	assert.NoError(t, err)
 
 	// sanity test
-	songs, err := db.ListSongs()
+	songs, err := db.ListSongsV2()
 	assert.Nil(t, err)
 	assert.Len(t, songs, 1)
 	assert.Equal(t, "test_song", songs[0].ID)

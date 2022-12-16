@@ -48,7 +48,47 @@ func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(song)
 }
 
+func (s *Server) AssignRFIDToSongFormHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	key := vars["song_id"]
+	if key == "" {
+		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
+		return
+	}
+
+	song, err := s.db.GetSong(key)
+	if err != nil {
+		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
+	if song == nil {
+		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
+
+	fullData := map[string]interface{}{
+		"Song":      song,
+		TemplateTag: s.GetToken(w, r),
+	}
+
+	files := []string{
+		"templates/assign_song.html",
+		"templates/layout.html",
+	}
+	editSongFormTpl := template.Must(template.ParseFiles(files...))
+	s.render(w, r, editSongFormTpl, fullData)
+}
+
+func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request) {
+
+}
+
+//
+
+//
+
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
+	// Dep
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
@@ -83,7 +123,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 	cp := player.GetPlayer()
 	song := player.GetPlaying()
 
-	songs, err := s.db.ListSongs()
+	songs, err := s.db.ListSongsV2()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return

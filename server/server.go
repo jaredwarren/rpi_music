@@ -35,19 +35,6 @@ type HTMLServer struct {
 	logger log.Logger
 }
 
-func CorsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST,OPTIONS")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 // Start launches the HTML Server
 func StartHTTPServer(cfg *Config) *HTMLServer {
 	// Setup Context
@@ -61,7 +48,6 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	r := mux.NewRouter()
 	r.Use(s.loggingMiddleware)
 	r.Use(mux.CORSMethodMiddleware(r))
-	// r.Use(CorsMiddleware) // for now all all
 
 	// Public Methods
 	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
@@ -83,11 +69,24 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// Song
 	ssub := sub.PathPrefix("/song").Subrouter()
 	ssub.HandleFunc("", s.NewSongHandler).Methods(http.MethodPost)
+
+	// Download Song
 	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongFormHandler).Methods(http.MethodGet) // GET /song/new
 	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)    // POST /song/new
-	ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
+
+	// Assign rfid to song
+	ssub.HandleFunc("/{song_id}", s.AssignRFIDToSongFormHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}", s.AssignRFIDToSongHandler).Methods(http.MethodPost)
+
+	// remove rfid from song
+	// ssub.HandleFunc("/{song_id}/{rfid}", s.UnassignRFIDSongFormHandler).Methods(http.MethodGet)
+	// ssub.HandleFunc("/{song_id}/{rfid}", s.UnassignRFIDSongHandler).Methods(http.MethodDelete)
+
+	// ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
+	// ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
 	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
+
+	// Play
 	ssub.HandleFunc("/{song_id}/play", s.PlaySongHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/stop", s.StopSongHandler).Methods(http.MethodGet)

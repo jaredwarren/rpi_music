@@ -19,13 +19,13 @@
 
 {{define "main"}}
 <div class="container">
+    <h2>Songs</h2>
     <table class="table table-striped table-hover" style="margin-bottom: 170px;">
         <thead>
             <tr>
                 <td>ID</td>
                 <td>Thumb</td>
                 <td>Title</td>
-                <td>RFID</td>
                 <td>URL</td>
                 <td>FilePath</td>
             </tr>
@@ -36,7 +36,6 @@
                 <td>{{$s.ID}}</td>
                 <td><img src="{{$s.Thumbnail}}" style="height: 50px;" alt="{{$s.Thumbnail}}"><br>{{$s.Thumbnail}}</td>
                 <td>{{$s.Title}}</td>
-                <td>{{$s.RFID}}</td>
                 <td>
                     <a href="{{$s.URL}}" target="_blank" type="button" class="btn btn-link"><span
                             class="material-symbols-outlined">
@@ -51,6 +50,24 @@
             {{end}}
         </tbody>
     </table>
+    <h2>RFID</h2>
+    <table class="table table-striped table-hover" style="margin-bottom: 170px;">
+        <thead>
+            <tr>
+                <td>ID</td>
+                <td>Songs</td>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $index, $s := .RFIDSongs}}
+            <tr id="{{$s.RFID}}">
+                <td>{{$s.RFID}}</td>
+                <td>{{$s.Songs}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    <h2>Files</h2>
     <table class="table table-striped table-hover" style="margin-bottom: 170px;">
         <thead>
             <tr>
@@ -69,6 +86,7 @@
             {{end}}
         </tbody>
     </table>
+    <h2>Thumb</h2>
     <table class="table table-striped table-hover" style="margin-bottom: 170px;">
         <thead>
             <tr>

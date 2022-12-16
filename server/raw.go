@@ -13,7 +13,13 @@ func (s *Server) RawHandler(w http.ResponseWriter, r *http.Request) {
 	// get everything from db,
 	// get all files and images
 
-	songs, err := s.db.ListSongs()
+	songs, err := s.db.ListSongsV2()
+	if err != nil {
+		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
+		return
+	}
+
+	rss, err := s.db.ListRFIDSongs()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return
@@ -49,6 +55,7 @@ func (s *Server) RawHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]interface{}{
 		"Songs":      songs,
 		"SongFiles":  sFiles,
+		"RFIDSongs":  rss,
 		"ThumbFiles": thumbFiles,
 		TemplateTag:  s.GetToken(w, r),
 	}

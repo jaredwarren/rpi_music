@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	SongBucket = "SongBucket"
+	SongBucket   = "SongBucket"
+	SongBucketV2 = "SongBucketV2"
 )
 
 type DBer interface {
@@ -20,7 +21,85 @@ type DBer interface {
 	UpdateSong(song *model.Song) error
 	DeleteSong(id string) error
 	SongExists(id string) (bool, error)
+
+	// V2
+	GetSongV2(rfid string) (*model.Song, error)
+	ListSongsV2() ([]*model.Song, error)
+	UpdateSongV2(song *model.Song) error
+	DeleteSongV2(id string) error
+
+	// RFID stuff
+	GetRFIDSong(rfid string) (*model.RFIDSong, error)
+	AddRFIDSong(rfid, songID string) error
+	RemoveRFIDSong(rfid, songID string) error
+	DeleteRFID(id string) error
+	ListRFIDSongs() ([]*model.RFIDSong, error)
 }
+
+func (s *SongDB) GetSongV2(songID string) (*model.Song, error) {
+	var song *model.Song
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucketV2))
+		v := b.Get([]byte(songID))
+		if v == nil {
+			// TODO: return err not found
+			return nil
+		}
+		err := json.Unmarshal(v, &song)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if song == nil {
+		// TODO: return err not found
+	}
+	return song, err
+}
+
+func (s *SongDB) ListSongsV2() ([]*model.Song, error) {
+	songs := []*model.Song{}
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucketV2))
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var song *model.Song
+			err := json.Unmarshal(v, &song)
+			if err != nil {
+				return err
+			}
+			songs = append(songs, song)
+		}
+		return nil
+	})
+	return songs, err
+}
+
+func (s *SongDB) UpdateSongV2(song *model.Song) error {
+	if song.ID == "" {
+		return fmt.Errorf("song ID required")
+	}
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucketV2))
+
+		buf, err := json.Marshal(song)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(song.ID), buf)
+	})
+}
+
+func (s *SongDB) DeleteSongV2(id string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucketV2))
+		return b.Delete([]byte(id)) // note: needs to "key"
+	})
+}
+
+//
+//
+//
 
 func NewSongDB(path string) (DBer, error) {
 	db, err := bolt.Open(path, 0600, nil)
@@ -31,7 +110,17 @@ func NewSongDB(path string) (DBer, error) {
 	err = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(SongBucket))
 		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
+			return fmt.Errorf("create bucke(%s)t: %s", SongBucket, err)
+		}
+
+		_, err = tx.CreateBucketIfNotExists([]byte(SongBucketV2))
+		if err != nil {
+			return fmt.Errorf("create bucke(%s)t: %s", SongBucketV2, err)
+		}
+
+		_, err = tx.CreateBucketIfNotExists([]byte(RFIDBucket))
+		if err != nil {
+			return fmt.Errorf("create bucke(%s)t: %s", RFIDBucket, err)
 		}
 		return nil
 	})
