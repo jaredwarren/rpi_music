@@ -155,7 +155,7 @@ func (s *Server) player_play(msg *Message) *Message {
 		Command: "player.play",
 	}
 
-	song, err := s.db.GetSong(msg.Data["song_id"])
+	song, err := s.db.GetSongV2(msg.Data["song_id"])
 	if err != nil {
 		resp.Error = err.Error()
 	}
@@ -202,6 +202,7 @@ func (s *Server) download(msg *Message) *Message {
 }
 
 func (s *Server) downloadVideo(rfid, url, thumb string) {
+	panic("TODO:")
 	rfid = strings.ReplaceAll(rfid, ":", "")
 
 	MessageChannel <- &Message{

@@ -45,7 +45,7 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 	// get filename
 	g.Go(func() error {
 		var err error
-		filename, err = getVideoFilename(videoID)
+		filename, err = GetVideoFilename(videoID)
 		return err
 	})
 
@@ -91,7 +91,7 @@ func getVideoInfo(videoID string) (map[string]interface{}, error) {
 	return out, nil
 }
 
-func getVideoFilename(videoID string) (string, error) {
+func GetVideoFilename(videoID string) (string, error) {
 	args := []string{
 		"--ignore-errors",
 		"--no-call-home",

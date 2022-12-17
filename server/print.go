@@ -11,10 +11,11 @@ import (
 )
 
 func (s *Server) PrintHandler(w http.ResponseWriter, r *http.Request) {
+	return
 	vars := mux.Vars(r)
-	key := vars["song_id"]
+	songID := vars["song_id"]
 
-	song, err := s.db.GetSong(key)
+	song, err := s.db.GetSongV2(songID)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("PrintHandler|db.View|%w", err), http.StatusInternalServerError)
 		return

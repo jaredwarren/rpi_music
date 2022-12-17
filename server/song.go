@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/downloader"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
@@ -32,7 +33,7 @@ func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := s.db.GetSong(key)
+	song, err := s.db.GetSongV2(key)
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
@@ -48,45 +49,6 @@ func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(song)
 }
 
-func (s *Server) AssignRFIDToSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	key := vars["song_id"]
-	if key == "" {
-		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
-		return
-	}
-
-	song, err := s.db.GetSong(key)
-	if err != nil {
-		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
-	if song == nil {
-		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
-
-	fullData := map[string]interface{}{
-		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
-	}
-
-	files := []string{
-		"templates/assign_song.html",
-		"templates/layout.html",
-	}
-	editSongFormTpl := template.Must(template.ParseFiles(files...))
-	s.render(w, r, editSongFormTpl, fullData)
-}
-
-func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request) {
-
-}
-
-//
-
-//
-
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	// Dep
 	vars := mux.Vars(r)
@@ -96,7 +58,7 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := s.db.GetSong(key)
+	song, err := s.db.GetSongV2(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return
@@ -169,105 +131,64 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
 
-	var song *model.Song
-
-	vtype := r.PostForm.Get("type")
-	switch vtype {
-	case "upload":
-		song, err = s.uploadSongHandler(r)
-		if err != nil {
-			s.logger.Error(err.Error())
-			s.httpError(w, err, http.StatusBadRequest)
-			return
-		}
-	case "download":
-		song, err = s.downloadSongHandler(r)
-		if err != nil {
-			s.logger.Error(err.Error())
-			s.httpError(w, err, http.StatusBadRequest)
-			return
-		}
-	default:
-		s.httpError(w, fmt.Errorf("invalid type|%s", vtype), http.StatusBadRequest)
+	song, err := s.downloadSongHandler(r)
+	if err != nil {
+		s.logger.Error(err.Error())
+		s.httpError(w, err, http.StatusBadRequest)
 		return
 	}
 
 	// 2. Store
-	err = s.db.UpdateSong(song)
+	err = s.db.UpdateSongV2(song)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("NewSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
 	}
 
+	// 3. Insert RFID if set
+	rfid := r.PostForm.Get("rfid")
+	rfid = strings.ReplaceAll(rfid, ":", "")
+	if rfid != "" {
+		// Make sure rfid doesn't exist yet.
+		rfidSong, err := s.db.GetRFIDSong(rfid)
+		if err != nil {
+			s.logger.Error("RFIDExists error", log.Error(err))
+			s.httpError(w, fmt.Errorf("RFIDExists error %w", err), http.StatusInternalServerError)
+			return
+		} else if rfidSong != nil {
+			s.httpError(w, fmt.Errorf("rfid aready assigned! (%+v)", rfidSong), http.StatusInternalServerError)
+			return
+		} // else continue
+
+		err = s.db.AddRFIDSong(rfid, song.ID)
+		if err != nil {
+			s.logger.Error("AddRFIDSong error", log.Error(err))
+			s.httpError(w, fmt.Errorf("AddRFIDSong error %w", err), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
-func (s *Server) uploadSongHandler(r *http.Request) (*model.Song, error) {
-	rfid := r.PostForm.Get("rfid")
-	if rfid == "" {
-		return nil, fmt.Errorf("need rfid")
-	}
-	rfid = strings.ReplaceAll(rfid, ":", "")
-
-	title := r.PostForm.Get("title")
-
-	song := &model.Song{
-		ID:    rfid,
-		Title: title,
-		RFID:  rfid,
-	}
-
-	// download image
-	thumb := r.PostForm.Get("thumb")
-	if thumb != "" {
-		thumbFile, err := downloadThumbFile(thumb)
-		if err != nil {
-			s.logger.Error(err.Error())
-			return nil, fmt.Errorf("thumbCopy|%w", err)
-		}
-		song.Thumbnail = thumbFile
-	}
-
-	// Handle Upload
-	file, handler, err := r.FormFile("upload")
-	if err != nil {
-		s.logger.Error(err.Error())
-		return nil, fmt.Errorf("FormFile|%w", err)
-	}
-	defer file.Close()
-
-	fileName := filepath.Join(viper.GetString("player.song_root"), handler.Filename)
-	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return nil, fmt.Errorf("OpenFile|%w", err)
-	}
-	defer f.Close()
-	_, err = io.Copy(f, file)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return nil, fmt.Errorf("Copy|%w", err)
-	}
-
-	return song, nil
-}
-
 func (s *Server) downloadSongHandler(r *http.Request) (*model.Song, error) {
-	rfid := r.PostForm.Get("rfid")
-	if rfid == "" {
-		return nil, fmt.Errorf("need rfid")
-	}
-	rfid = strings.ReplaceAll(rfid, ":", "")
-
 	url := r.PostForm.Get("url")
 	if url == "" {
 		return nil, fmt.Errorf("missing url")
 	}
 
-	song := &model.Song{
-		ID:   rfid,
-		RFID: rfid,
-		URL:  url,
+	force := r.PostForm.Get("force") != ""
+	if !force {
+		// check if file exists
+		filename, err := downloader.GetVideoFilename(url)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := os.Stat(filename); err == nil {
+			return nil, fmt.Errorf("file already downloaded")
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
 	}
 
 	// 1. Download song
@@ -277,29 +198,26 @@ func (s *Server) downloadSongHandler(r *http.Request) (*model.Song, error) {
 		return nil, fmt.Errorf("DownloadVideo|%w", err)
 	}
 
-	thumb := r.PostForm.Get("thumb")
-	if thumb != "" {
-		thumbFile, err := downloadThumbFile(thumb)
-		if err != nil {
-			s.logger.Error(err.Error())
-			return nil, fmt.Errorf("thumbCopy|%w", err)
-		}
-		song.Thumbnail = thumbFile
-	} else {
-		tmb, err := s.downloader.DownloadThumb(video)
-		if err != nil {
-			s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
-			// ignore err
-		}
-		song.Thumbnail = tmb
+	// 2. Download Thumb
+	tmb, err := s.downloader.DownloadThumb(video)
+	if err != nil {
+		s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
+		// ignore err
 	}
-	song.FilePath = file
-	song.Title = video.Title
+	song := &model.Song{
+		ID:        uuid.New().String(),
+		URL:       url,
+		Thumbnail: tmb,
+		FilePath:  file,
+		Title:     video.Title,
+	}
 
 	return song, nil
 }
 
 func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
+	s.logger.Warn("TODO: borken")
+	return
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
@@ -348,7 +266,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 
 	// delete old key if rfid id different then key
 	if key != rfid {
-		err := s.db.DeleteSong(key)
+		err := s.db.DeleteSongV2(key)
 		if err != nil {
 			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 			return
@@ -356,7 +274,7 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update otherwise
-	err = s.db.UpdateSong(song)
+	err = s.db.UpdateSongV2(song)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
@@ -372,7 +290,7 @@ func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("no key"), http.StatusBadRequest)
 		return
 	}
-	err := s.db.DeleteSong(key)
+	err := s.db.DeleteSongV2(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
@@ -390,7 +308,7 @@ func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := s.db.GetSong(key)
+	song, err := s.db.GetSongV2(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return

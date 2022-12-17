@@ -31,7 +31,6 @@
         border: none;
     }
 </style>
-<h1>{{.Song.Title}}</h1>
 <script>
     var loadingModal;
     // Add a global error event listener early on in the page load, to help ensure that browsers
@@ -147,38 +146,20 @@
 <div class="container h-100">
     <div class="card row h-100 justify-content-center align-items-center">
         <div class="card-body">
-            <ul class="nav nav-tabs" id="myTab" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#home"
-                        type="button" role="tab" aria-controls="home" aria-selected="true">Youtube</button>
-                </li>
-            </ul>
             <div class="tab-content" id="myTabContent">
                 <div class="tab-pane fade show active" id="home" role="tabpanel" aria-labelledby="home-tab">
-                    <form enctype="multipart/form-data" action="/song/{{.Song.ID}}" method="post"
+                    <form enctype="multipart/form-data" action="/song/{{.Song.ID}}/rfid" method="post"
                         onsubmit="submitHandler(event,this)">
                         {{ .csrfField }}
                         <fieldset>
-                            <input type="hidden" name="type" value="download" />
-                            <legend>Enter New Song</legend>
+                            <legend>{{.Song.Title}}</legend>
                             <div class="mb-3">
-                                <label for="url" class="form-label">URL:</label>
-                                <div class="input-group mb-3">
-                                    <input class="form-control" id="url" name="url" type="url" value="{{.Song.URL}}" placeholder="youtube.com" required>
-                                    <div class="input-group-text">
-                                        <input class="form-check-input mt-0" type="checkbox" name="force" value="true"
-                                            aria-label="Checkbox for following text input">
-                                    </div>
-                                </div>
-                                <div id="emailHelp" class="form-text">check box to force re-download</div>
-                            </div>
-                            <div class="mb-3">
-                                <label for="rfid" class="form-label">RFID (optional)</label>
+                                <label for="rfid" class="form-label">RFID</label>
                                 <input onclick="onbtnclick()" class="form-control" id="rfid" name="rfid" type="text"
-                                    value="{{.Song.RFID}}">
+                                    value="{{.Song.RFID}}" required>
                             </div>
                             <button type="submit" class="btn btn-primary"><span
-                                    class="material-symbols-outlined align-middle">playlist_add</span> Add</button>
+                                    class="material-symbols-outlined align-middle">nfc</span> Set RFID</button>
                         </fieldset>
                         <hr>
                         <div class="form-group">

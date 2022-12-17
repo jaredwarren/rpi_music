@@ -19,6 +19,7 @@ import (
 )
 
 func TestListSongHandler(t *testing.T) {
+	panic("TODO:")
 	db := initDB(t)
 
 	err := db.UpdateSong(&model.Song{

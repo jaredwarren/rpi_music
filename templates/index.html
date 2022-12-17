@@ -68,6 +68,7 @@
                     document.getElementById("exampleModalYoutubeLink").setAttribute("href", res.URL);
                     document.getElementById("exampleModalEditLink").setAttribute("href", "/song/" + res.ID);
                     document.getElementById("exampleModalPrintLink").setAttribute("href", "/song/" + res.ID + "/print");
+                    document.getElementById("exampleModalNFCLink").setAttribute("href", "/song/" + res.ID + "/rfid");
                     document.getElementById("exampleModalPlayLink").setAttribute("onclick", "wsplay(event, '" + res.ID + "')");
                     document.getElementById("exampleModalDeleteLink").setAttribute("href", "/song/" + res.ID + "/delete");
                     myModal.show();
@@ -156,6 +157,9 @@
                         </div>
                     </div>
                     <div class="form-group">
+                        <div class="input-group mb-3">
+                            <a id="exampleModalNFCLink" class="btn btn-success" type="button"><span class="material-symbols-outlined align-middle">nfc</span> NFC</a>
+                        </div>
                         <div class="input-group mb-3">
                             <a id="exampleModalPrintLink" class="btn btn-secondary" type="button"><span
                                     class="material-symbols-outlined align-middle">

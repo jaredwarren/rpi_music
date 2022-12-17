@@ -12,6 +12,17 @@ const (
 	RFIDBucket = "RFIDBucket"
 )
 
+func (s *SongDB) RFIDExists(rfid string) (bool, error) {
+	exists := false
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(RFIDBucket))
+		v := b.Get([]byte(rfid))
+		exists = v != nil
+		return nil
+	})
+	return exists, err
+}
+
 func (s *SongDB) ListRFIDSongs() ([]*model.RFIDSong, error) {
 	rss := []*model.RFIDSong{}
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -121,6 +132,11 @@ func (s *SongDB) RemoveRFIDSong(rfid, songID string) error {
 			return err
 		}
 
+		// if not songs, delete key
+		if len(rs.Songs) == 0 {
+			return b.Delete([]byte(rfid))
+		}
+
 		// ignore if not found
 		exists := false
 		for i, v := range rs.Songs {
@@ -134,7 +150,7 @@ func (s *SongDB) RemoveRFIDSong(rfid, songID string) error {
 			return nil
 		}
 
-		// re-insert
+		// re-insert remaining songs
 		buf, err := json.Marshal(rs)
 		if err != nil {
 			return err

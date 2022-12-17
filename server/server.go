@@ -65,6 +65,8 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// list songs
 	sub.HandleFunc("/", s.ListSongHandler).Methods(http.MethodGet)
 	sub.HandleFunc("/songs", s.ListSongHandler).Methods(http.MethodGet)
+	sub.HandleFunc("/rfids", s.EditRFIDSongFormHandler).Methods(http.MethodGet)
+	sub.HandleFunc("/rfid/{rfid}/{song_id}", s.UnassignRFIDSongHandler).Methods(http.MethodDelete)
 
 	// Song
 	ssub := sub.PathPrefix("/song").Subrouter()
@@ -75,22 +77,18 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)    // POST /song/new
 
 	// Assign rfid to song
-	ssub.HandleFunc("/{song_id}", s.AssignRFIDToSongFormHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}", s.AssignRFIDToSongHandler).Methods(http.MethodPost)
-
-	// remove rfid from song
-	// ssub.HandleFunc("/{song_id}/{rfid}", s.UnassignRFIDSongFormHandler).Methods(http.MethodGet)
-	// ssub.HandleFunc("/{song_id}/{rfid}", s.UnassignRFIDSongHandler).Methods(http.MethodDelete)
+	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongFormHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongHandler).Methods(http.MethodPost)
 
 	// ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
 	// ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
-	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
+	// ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
 
 	// Play
 	ssub.HandleFunc("/{song_id}/play", s.PlaySongHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
+	// ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/stop", s.StopSongHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/play_video", s.PlayVideoHandler).Methods(http.MethodGet)
+	// ssub.HandleFunc("/{song_id}/play_video", s.PlayVideoHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/print", s.PrintHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/json", s.JSONHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/json", s.JSONHandler).Methods(http.MethodGet)
@@ -146,7 +144,8 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Debug(r.RequestURI, log.Any("r", r))
+		// s.logger.Debug(r.RequestURI, log.Any("r", r))
+		s.logger.Debug("[request] - " + r.RequestURI)
 		// Call the next handler, which can be another middleware in the chain, or the final handler.
 		next.ServeHTTP(w, r)
 	})
@@ -242,9 +241,9 @@ func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	key := vars["song_id"]
+	songID := vars["song_id"]
 
-	song, err := s.db.GetSong(key)
+	song, err := s.db.GetSongV2(songID)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
 		return

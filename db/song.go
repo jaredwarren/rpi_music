@@ -16,8 +16,7 @@ const (
 type DBer interface {
 	// Open(path string, mode fs.FileMode, options *bolt.Options)
 	Close() error
-	GetSong(id string) (*model.Song, error)
-	ListSongs() ([]*model.Song, error)
+	ListSongs() ([]*model.Song, error) // Still need for migrate
 	UpdateSong(song *model.Song) error
 	DeleteSong(id string) error
 	SongExists(id string) (bool, error)
@@ -34,6 +33,7 @@ type DBer interface {
 	RemoveRFIDSong(rfid, songID string) error
 	DeleteRFID(id string) error
 	ListRFIDSongs() ([]*model.RFIDSong, error)
+	RFIDExists(rfid string) (bool, error)
 }
 
 func (s *SongDB) GetSongV2(songID string) (*model.Song, error) {
@@ -139,23 +139,6 @@ type SongDB struct {
 
 func (s *SongDB) Close() error {
 	return s.db.Close()
-}
-
-func (s *SongDB) GetSong(id string) (*model.Song, error) {
-	var song *model.Song
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		v := b.Get([]byte(id))
-		if v == nil {
-			return nil
-		}
-		err := json.Unmarshal(v, &song)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	return song, err
 }
 
 func (s *SongDB) ListSongs() ([]*model.Song, error) {

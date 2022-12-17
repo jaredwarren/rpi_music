@@ -122,8 +122,20 @@ func New(cfg *Config) (*RFIDReader, error) {
 func (r *RFIDReader) Start() {
 	go func() {
 		for {
-			id := r.ReadID()
-			song, err := r.db.GetSong(id)
+			rfid := r.ReadID()
+			rfidSong, err := r.db.GetRFIDSong(rfid)
+			if err != nil {
+				r.logger.Error("GetRFIDSong error", log.Error(err))
+				// TODO: play error
+				continue
+			}
+			if len(rfidSong.Songs) == 0 {
+				r.logger.Error("no songs"+rfid, log.Error(err))
+				// TODO: play error
+				continue
+			}
+
+			song, err := r.db.GetSongV2(rfidSong.Songs[0])
 			if err != nil {
 				r.logger.Error("error reading db", log.Error(err))
 			}
@@ -135,7 +147,7 @@ func (r *RFIDReader) Start() {
 					r.logger.Error("error playing song", log.Error(err))
 				}
 			} else {
-				r.logger.Info("song id not found", log.Any("id", id))
+				r.logger.Info("song id not found", log.Any("id", rfid))
 			}
 
 			// cooldown
