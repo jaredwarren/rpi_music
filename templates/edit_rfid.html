@@ -38,20 +38,7 @@
                 console.log("Argh! Cannot read data from the NFC tag. Try another one?");
             });
             ndef.addEventListener("reading", ({ message, serialNumber }) => {
-                serialNumber = serialNumber.replaceAll(":", "")
-                console.log(`> Serial Number: ${serialNumber}`);
-                var r = document.querySelectorAll("tr");
-                for (let i = 0; i < r.length; i++) {
-                    var el = r.length[i];
-                    if (el) {
-                        el.classList.remove("active");
-                    }
-                }
-                var el = document.getElementById(serialNumber)
-
-                el.scrollIntoView();
-                el.classList.add("active");
-                console.log(`> Records: (${message.records.length})`);
+                selectByRFID(serialNumber)
             });
         } catch (error) {
             console.log("Argh! " + error);
@@ -74,6 +61,24 @@
             });
     }
 
+    function selectByRFID(rfid) {
+        rfid = rfid.replaceAll(":", "")
+        console.log(`> Serial Number: ${rfid}`);
+        var r = document.querySelectorAll("tr");
+        for (let i = 0; i < r.length; i++) {
+            var el = r.length[i];
+            if (el) {
+                el.classList.remove("active");
+            }
+        }
+
+        var el = document.getElementById(rfid)
+        // TODO: check if el is undefined
+        // TODO: un "active" everything
+        el.scrollIntoView();
+        el.classList.add("active");
+    }
+
 </script>
 
 
@@ -87,12 +92,12 @@
             </tr>
         </thead>
         <tbody>
-            {{range $index, $ss := .Rfids}}
+            {{range $rfid, $ss := .Rfids}}
             {{range $s := $ss}}
-            <tr id="{{$index}}-{{$s.ID}}" data-whatever="{{$s.ID}}">
+            <tr id="{{$rfid}}" data-songid="{{$s.ID}}">
                 <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
                 <td>{{$s.Title}}</td>
-                <td class="align-middle"><button onClick="deleteSong(event, '{{$index}}', '{{$s.ID}}')"
+                <td class="align-middle"><button onClick="deleteSong(event, '{{$rfid}}', '{{$s.ID}}')"
                         class="btn btn-outline-danger" href="#"><span
                             class="material-symbols-outlined align-middle">delete
                         </span></button></td>

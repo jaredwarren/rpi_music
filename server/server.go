@@ -67,6 +67,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	sub.HandleFunc("/songs", s.ListSongHandler).Methods(http.MethodGet)
 	sub.HandleFunc("/rfids", s.EditRFIDSongFormHandler).Methods(http.MethodGet)
 	sub.HandleFunc("/rfid/{rfid}/{song_id}", s.UnassignRFIDSongHandler).Methods(http.MethodDelete)
+	sub.HandleFunc("/{rfid}/json", s.JSONGetSongByRFID).Methods(http.MethodGet)
 
 	// Song
 	ssub := sub.PathPrefix("/song").Subrouter()
@@ -241,12 +242,12 @@ func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	songID := vars["song_id"]
-
 	song, err := s.db.GetSong(songID)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
 		return
 	}
+
 	if song.FilePath == "" {
 		player.Error()
 		return

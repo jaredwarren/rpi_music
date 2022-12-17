@@ -22,18 +22,58 @@ import (
 )
 
 // JSONHandler
+func (s *Server) JSONGetSongByRFID(w http.ResponseWriter, r *http.Request) {
+	s.logger.Info("JSONGetSongByRFID")
+	w.Header().Set("Content-Type", "application/json")
+	vars := mux.Vars(r)
+	rfid := vars["rfid"]
+	if rfid == "" {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "rfid required",
+		})
+		return
+	}
+	rs, err := s.db.GetRFIDSong(rfid)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+	if len(rs.Songs) == 0 {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "rfid has now song",
+		})
+		return
+	}
+
+	song, err := s.db.GetSong(rs.Songs[0])
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": err.Error(),
+		})
+		return
+	}
+	if song == nil {
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "song not found",
+		})
+		return
+	}
+	json.NewEncoder(w).Encode(song)
+}
 func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	vars := mux.Vars(r)
-	key := vars["song_id"]
-	if key == "" {
+	songID := vars["song_id"]
+	if songID == "" {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "song_id required",
 		})
 		return
 	}
 
-	song, err := s.db.GetSong(key)
+	song, err := s.db.GetSong(songID)
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),

@@ -37,25 +37,39 @@
                 console.log("Argh! Cannot read data from the NFC tag. Try another one?");
             });
             ndef.addEventListener("reading", ({ message, serialNumber }) => {
-                serialNumber = serialNumber.replaceAll(":", "")
-                console.log(`> Serial Number: ${serialNumber}`);
-                var r = document.querySelectorAll("tr");
-                for (let i = 0; i < r.length; i++) {
-                    var el = r.length[i];
-                    if (el) {
-                        el.classList.remove("active");
-                    }
-                }
-                var el = document.getElementById(serialNumber)
-
-                el.scrollIntoView();
-                el.classList.add("active");
-                console.log(`> Records: (${message.records.length})`);
+                selectByRFID(serialNumber);
             });
         } catch (error) {
             console.log("Argh! " + error);
         }
     });
+
+    function selectByRFID(rfid) {
+        rfid = rfid.replaceAll(":", "")
+        console.log(`> Serial Number: ${rfid}`);
+        var r = document.querySelectorAll("tr");
+        for (let i = 0; i < r.length; i++) {
+            var el = r.length[i];
+            if (el) {
+                el.classList.remove("active");
+            }
+        }
+        fetch("/" + rfid + "/json") // Call the fetch function passing the url of the API as a parameter
+            .then(res => res.json())
+            .then(function (res) {
+                console.log(res)
+                var el = document.getElementById(res.ID)
+                // TODO: check if el is undefined
+                // TODO: un "active" everything
+                el.scrollIntoView();
+                el.classList.add("active");
+            })
+            .catch(function (e) {
+                alert("error");
+                console.error(e);
+                // This is where you run code if the server returns any errors
+            });
+    }
 
     function showSongInfo(e) {
         if (e.dataset.whatever) {
