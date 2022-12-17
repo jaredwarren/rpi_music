@@ -159,6 +159,53 @@ func (s *SongDB) RemoveRFIDSong(rfid, songID string) error {
 	})
 }
 
+func (s *SongDB) DeleteSongFromRFID(songID string) error {
+	if songID == "" {
+		return fmt.Errorf("DeleteSongFromRFID need songID(%s)", songID)
+	}
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(RFIDBucket))
+
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var rs *model.RFIDSong
+			err := json.Unmarshal(v, &rs)
+			if err != nil {
+				return err
+			}
+
+			updated := false
+			for i, s := range rs.Songs {
+				if s == songID {
+					rs.Songs = append(rs.Songs[:i], rs.Songs[i+1:]...)
+					updated = true
+					break
+				}
+			}
+			if updated {
+				// if not songs, delete key
+				if len(rs.Songs) == 0 {
+					err := b.Delete([]byte(rs.RFID))
+					if err != nil {
+						return err
+					}
+				} else {
+					// re-insert remaining songs
+					buf, err := json.Marshal(rs)
+					if err != nil {
+						return err
+					}
+					err = b.Put([]byte(rs.RFID), buf)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	})
+}
+
 func (s *SongDB) DeleteRFID(id string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(RFIDBucket))

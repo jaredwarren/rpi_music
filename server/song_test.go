@@ -19,7 +19,6 @@ import (
 )
 
 func TestListSongHandler(t *testing.T) {
-	panic("TODO:")
 	db := initDB(t)
 
 	err := db.UpdateSong(&model.Song{
@@ -29,7 +28,7 @@ func TestListSongHandler(t *testing.T) {
 	assert.NoError(t, err)
 
 	// sanity test
-	songs, err := db.ListSongsV2()
+	songs, err := db.ListSongs()
 	assert.Nil(t, err)
 	assert.Len(t, songs, 1)
 	assert.Equal(t, "test_song", songs[0].ID)

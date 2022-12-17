@@ -13,7 +13,7 @@ func (s *Server) RawHandler(w http.ResponseWriter, r *http.Request) {
 	// get everything from db,
 	// get all files and images
 
-	songs, err := s.db.ListSongsV2()
+	songs, err := s.db.ListSongs()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return

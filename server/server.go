@@ -80,15 +80,14 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongFormHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongHandler).Methods(http.MethodPost)
 
+	// Play
 	// ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
 	// ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
-	// ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
-
-	// Play
+	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
 	ssub.HandleFunc("/{song_id}/play", s.PlaySongHandler).Methods(http.MethodGet)
-	// ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/stop", s.StopSongHandler).Methods(http.MethodGet)
-	// ssub.HandleFunc("/{song_id}/play_video", s.PlayVideoHandler).Methods(http.MethodGet)
+	ssub.HandleFunc("/{song_id}/play_video", s.PlayVideoHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/print", s.PrintHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/json", s.JSONHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/json", s.JSONHandler).Methods(http.MethodGet)
@@ -243,7 +242,7 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	songID := vars["song_id"]
 
-	song, err := s.db.GetSongV2(songID)
+	song, err := s.db.GetSong(songID)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
 		return
@@ -262,6 +261,12 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
 	player.Stop()
 	http.Redirect(w, r, "/songs", http.StatusFound)
+}
+
+type Message struct {
+	Command string            `json:"command"`
+	Data    map[string]string `json:"data"`
+	Error   string            `json:"error"`
 }
 
 func (s *Server) Log(w http.ResponseWriter, r *http.Request) {

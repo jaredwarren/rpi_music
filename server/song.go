@@ -33,7 +33,7 @@ func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := s.db.GetSongV2(key)
+	song, err := s.db.GetSong(key)
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
@@ -50,7 +50,6 @@ func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	// Dep
 	vars := mux.Vars(r)
 	key := vars["song_id"]
 	if key == "" {
@@ -58,7 +57,7 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := s.db.GetSongV2(key)
+	song, err := s.db.GetSong(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return
@@ -85,7 +84,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 	cp := player.GetPlayer()
 	song := player.GetPlaying()
 
-	songs, err := s.db.ListSongsV2()
+	songs, err := s.db.ListSongs()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return
@@ -139,7 +138,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Store
-	err = s.db.UpdateSongV2(song)
+	err = s.db.UpdateSong(song)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("NewSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
@@ -216,37 +215,31 @@ func (s *Server) downloadSongHandler(r *http.Request) (*model.Song, error) {
 }
 
 func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Warn("TODO: borken")
+	s.logger.Warn("UpdateSongHandler broken!!!")
 	return
 	vars := mux.Vars(r)
-	key := vars["song_id"]
-	if key == "" {
-		s.httpError(w, fmt.Errorf("no key"), http.StatusBadRequest)
+	songID := vars["song_id"]
+	if songID == "" {
+		s.httpError(w, fmt.Errorf("no song_id"), http.StatusBadRequest)
 		return
 	}
-	s.logger.Info("UpdateSongHandler", log.Any("form", r.PostForm))
+	song, err := s.db.GetSong(songID)
+	if err != nil {
+		s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
+	if song == nil {
+		s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
+		return
+	}
 
-	err := r.ParseForm()
+	err = r.ParseForm()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("UpdateSongHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
 
 	url := r.PostForm.Get("url")
-	rfid := r.PostForm.Get("rfid")
-	rfid = strings.ReplaceAll(rfid, ":", "") // added because js code is bad and sometimes sends rfid without ':'
-
-	// Delete if rfid blank
-	if rfid == "" {
-		s.httpError(w, fmt.Errorf("need rfid"), http.StatusBadRequest)
-		return
-	}
-
-	song := &model.Song{
-		ID:   rfid,
-		URL:  url,
-		RFID: rfid,
-	}
 
 	// try to download file again
 	file, video, err := s.downloader.DownloadVideo(url, s.logger)
@@ -265,16 +258,9 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	song.Title = video.Title
 
 	// delete old key if rfid id different then key
-	if key != rfid {
-		err := s.db.DeleteSongV2(key)
-		if err != nil {
-			s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
-			return
-		}
-	}
 
 	// Update otherwise
-	err = s.db.UpdateSongV2(song)
+	err = s.db.UpdateSong(song)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
@@ -285,12 +271,12 @@ func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	key := vars["song_id"]
-	if key == "" {
+	songID := vars["song_id"]
+	if songID == "" {
 		s.httpError(w, fmt.Errorf("no key"), http.StatusBadRequest)
 		return
 	}
-	err := s.db.DeleteSongV2(key)
+	err := s.db.DeleteSong(songID)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("DeleteSongHandler|db.Update|%w", err), http.StatusInternalServerError)
 		return
@@ -308,7 +294,7 @@ func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	song, err := s.db.GetSongV2(key)
+	song, err := s.db.GetSong(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("EditSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return

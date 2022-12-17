@@ -22,9 +22,9 @@ func (s *Server) EditRFIDSongFormHandler(w http.ResponseWriter, r *http.Request)
 	for _, r := range rfids {
 		rfidMap[r.RFID] = []*model.Song{}
 		for _, sid := range r.Songs {
-			song, err := s.db.GetSongV2(sid)
+			song, err := s.db.GetSong(sid)
 			if err != nil {
-				s.httpError(w, fmt.Errorf("EditRFIDSongFormHandler|GetSongV2|%w", err), http.StatusBadRequest)
+				s.httpError(w, fmt.Errorf("EditRFIDSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 				return
 			}
 			rfidMap[r.RFID] = append(rfidMap[r.RFID], song)
@@ -81,7 +81,7 @@ func (s *Server) AssignRFIDToSongFormHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	song, err := s.db.GetSongV2(key)
+	song, err := s.db.GetSong(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return
@@ -118,7 +118,7 @@ func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	song, err := s.db.GetSongV2(key)
+	song, err := s.db.GetSong(key)
 	if err != nil {
 		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return

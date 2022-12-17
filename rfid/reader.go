@@ -135,7 +135,7 @@ func (r *RFIDReader) Start() {
 				continue
 			}
 
-			song, err := r.db.GetSongV2(rfidSong.Songs[0])
+			song, err := r.db.GetSong(rfidSong.Songs[0])
 			if err != nil {
 				r.logger.Error("error reading db", log.Error(err))
 			}

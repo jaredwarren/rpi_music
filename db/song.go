@@ -16,16 +16,14 @@ const (
 type DBer interface {
 	// Open(path string, mode fs.FileMode, options *bolt.Options)
 	Close() error
-	ListSongs() ([]*model.Song, error) // Still need for migrate
+	OldListSongs() ([]*model.Song, error) // Still need for migrate
+
+	// V2
+	GetSong(rfid string) (*model.Song, error)
+	ListSongs() ([]*model.Song, error)
 	UpdateSong(song *model.Song) error
 	DeleteSong(id string) error
 	SongExists(id string) (bool, error)
-
-	// V2
-	GetSongV2(rfid string) (*model.Song, error)
-	ListSongsV2() ([]*model.Song, error)
-	UpdateSongV2(song *model.Song) error
-	DeleteSongV2(id string) error
 
 	// RFID stuff
 	GetRFIDSong(rfid string) (*model.RFIDSong, error)
@@ -34,9 +32,36 @@ type DBer interface {
 	DeleteRFID(id string) error
 	ListRFIDSongs() ([]*model.RFIDSong, error)
 	RFIDExists(rfid string) (bool, error)
+	DeleteSongFromRFID(songID string) error
 }
 
-func (s *SongDB) GetSongV2(songID string) (*model.Song, error) {
+type SongDB struct {
+	db *bolt.DB
+}
+
+func (s *SongDB) Close() error {
+	return s.db.Close()
+}
+
+func (s *SongDB) OldListSongs() ([]*model.Song, error) {
+	songs := []*model.Song{}
+	err := s.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucket))
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var song *model.Song
+			err := json.Unmarshal(v, &song)
+			if err != nil {
+				return err
+			}
+			songs = append(songs, song)
+		}
+		return nil
+	})
+	return songs, err
+}
+
+func (s *SongDB) GetSong(songID string) (*model.Song, error) {
 	var song *model.Song
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
@@ -57,7 +82,7 @@ func (s *SongDB) GetSongV2(songID string) (*model.Song, error) {
 	return song, err
 }
 
-func (s *SongDB) ListSongsV2() ([]*model.Song, error) {
+func (s *SongDB) ListSongs() ([]*model.Song, error) {
 	songs := []*model.Song{}
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
@@ -75,7 +100,7 @@ func (s *SongDB) ListSongsV2() ([]*model.Song, error) {
 	return songs, err
 }
 
-func (s *SongDB) UpdateSongV2(song *model.Song) error {
+func (s *SongDB) UpdateSong(song *model.Song) error {
 	if song.ID == "" {
 		return fmt.Errorf("song ID required")
 	}
@@ -90,11 +115,15 @@ func (s *SongDB) UpdateSongV2(song *model.Song) error {
 	})
 }
 
-func (s *SongDB) DeleteSongV2(id string) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+func (s *SongDB) DeleteSong(songID string) error {
+	err := s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
-		return b.Delete([]byte(id)) // note: needs to "key"
+		return b.Delete([]byte(songID))
 	})
+	if err != nil {
+		return err
+	}
+	return s.DeleteSongFromRFID(songID)
 }
 
 //
@@ -133,58 +162,10 @@ func NewSongDB(path string) (DBer, error) {
 	}, nil
 }
 
-type SongDB struct {
-	db *bolt.DB
-}
-
-func (s *SongDB) Close() error {
-	return s.db.Close()
-}
-
-func (s *SongDB) ListSongs() ([]*model.Song, error) {
-	songs := []*model.Song{}
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var song *model.Song
-			err := json.Unmarshal(v, &song)
-			if err != nil {
-				return err
-			}
-			songs = append(songs, song)
-		}
-		return nil
-	})
-	return songs, err
-}
-
-func (s *SongDB) UpdateSong(song *model.Song) error {
-	if song.ID == "" {
-		return fmt.Errorf("song ID required")
-	}
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-
-		buf, err := json.Marshal(song)
-		if err != nil {
-			return err
-		}
-		return b.Put([]byte(song.ID), buf)
-	})
-}
-
-func (s *SongDB) DeleteSong(id string) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		return b.Delete([]byte(id)) // note: needs to "key"
-	})
-}
-
 func (s *SongDB) SongExists(id string) (bool, error) {
 	exists := false
 	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
+		b := tx.Bucket([]byte(SongBucketV2))
 		v := b.Get([]byte(id))
 		exists = v != nil
 		return nil

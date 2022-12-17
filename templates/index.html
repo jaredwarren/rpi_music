@@ -10,6 +10,10 @@
                     class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" href="/rfids"><span class="material-symbols-outlined align-middle">nfc</span>
+                <span>Cards</span></a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span>
                 <span class="align-middle"></span></a>
         </li>
@@ -66,7 +70,7 @@
                     document.getElementById("exampleModalID").setAttribute("value", res.ID);
                     document.getElementById("exampleModalYoutube").setAttribute("value", res.URL);
                     document.getElementById("exampleModalYoutubeLink").setAttribute("href", res.URL);
-                    document.getElementById("exampleModalEditLink").setAttribute("href", "/song/" + res.ID);
+                    // document.getElementById("exampleModalEditLink").setAttribute("href", "/song/" + res.ID);
                     document.getElementById("exampleModalPrintLink").setAttribute("href", "/song/" + res.ID + "/print");
                     document.getElementById("exampleModalNFCLink").setAttribute("href", "/song/" + res.ID + "/rfid");
                     document.getElementById("exampleModalPlayLink").setAttribute("onclick", "wsplay(event, '" + res.ID + "')");
@@ -158,7 +162,8 @@
                     </div>
                     <div class="form-group">
                         <div class="input-group mb-3">
-                            <a id="exampleModalNFCLink" class="btn btn-success" type="button"><span class="material-symbols-outlined align-middle">nfc</span> NFC</a>
+                            <a id="exampleModalNFCLink" class="btn btn-success" type="button"><span
+                                    class="material-symbols-outlined align-middle">nfc</span> NFC</a>
                         </div>
                         <div class="input-group mb-3">
                             <a id="exampleModalPrintLink" class="btn btn-secondary" type="button"><span
@@ -166,12 +171,12 @@
                                     print
                                 </span> Print</a>
                         </div>
-                        <div class="input-group mb-3">
+                        <!-- <div class="input-group mb-3">
                             <a id="exampleModalEditLink" class="btn btn-primary" type="button"><span
                                     class="material-symbols-outlined align-middle">
                                     edit
                                 </span> Edit</a>
-                        </div>
+                        </div> -->
                         <div class="input-group mb-3">
                             <a id="exampleModalDeleteLink" class="btn btn-danger"
                                 onclick="return confirm('Are you sure?')"><span
