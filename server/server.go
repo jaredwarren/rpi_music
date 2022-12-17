@@ -247,6 +247,11 @@ func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
 		return
 	}
+	if song.FilePath == "" {
+		player.Error()
+		return
+	}
+
 	player.Beep()
 	err = player.Play(song)
 	if err != nil {
