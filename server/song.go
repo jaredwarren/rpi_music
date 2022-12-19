@@ -124,11 +124,29 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 	cp := player.GetPlayer()
 	song := player.GetPlaying()
 
+	s.logger.Info("current song", log.Any("song", song))
+
 	songs, err := s.db.ListSongs()
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return
 	}
+
+	rfids, err := s.db.ListRFIDSongs()
+	if err != nil {
+		s.httpError(w, fmt.Errorf("ListSongHandler|ListRFIDSongs|%w", err), http.StatusBadRequest)
+		return
+	}
+	for _, s := range songs {
+		for _, r := range rfids {
+			for _, rs := range r.Songs {
+				if rs == s.ID {
+					s.RFID = r.RFID
+				}
+			}
+		}
+	}
+
 	fullData := map[string]interface{}{
 		"Songs":       songs,
 		"CurrentSong": song,

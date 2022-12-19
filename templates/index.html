@@ -47,9 +47,9 @@
     function selectByRFID(rfid) {
         rfid = rfid.replaceAll(":", "")
         console.log(`> Serial Number: ${rfid}`);
-        var r = document.querySelectorAll("tr");
+        var r = document.querySelectorAll("tr.active");
         for (let i = 0; i < r.length; i++) {
-            var el = r.length[i];
+            var el = r[i];
             if (el) {
                 el.classList.remove("active");
             }
@@ -59,10 +59,10 @@
             .then(function (res) {
                 console.log(res)
                 var el = document.getElementById(res.ID)
-                // TODO: check if el is undefined
-                // TODO: un "active" everything
-                el.scrollIntoView();
-                el.classList.add("active");
+                if (el) {
+                    el.scrollIntoView();
+                    el.classList.add("active");
+                }
             })
             .catch(function (e) {
                 alert("error");
@@ -121,6 +121,7 @@
                 <td>Thumb</td>
                 <td>Title</td>
                 <td>Play</td>
+                <td>rfid</td>
             </tr>
         </thead>
         <tbody>
@@ -131,6 +132,13 @@
                 <td class="align-middle"><button onClick="wsplay(event, '{{$s.ID}}')" class="btn btn-outline-primary"
                         href="/song/{{$s.ID}}/play"><span class="material-symbols-outlined align-middle">play_circle
                         </span></button></td>
+                <td class="align-middle">{{if eq $s.RFID ""}}<button class="btn btn-danger disabled"><span
+                            class="material-symbols-outlined  align-middle">
+                            cancel
+                        </span></button>{{else}}<button class="btn btn-outline-success disabled"><span
+                            class="material-symbols-outlined  align-middle">
+                            task_alt
+                        </span></button>{{end}}</td>
             </tr>
             {{end}}
 
@@ -211,7 +219,6 @@
 {{end}}
 
 {{define "player"}}
-{{if .CurrentSong}}
 <style>
     #player {
         height: 70px;
@@ -227,11 +234,12 @@
         padding: 10px;
     }
 </style>
-<div id="player">
-    <img id="player_thumb" src="{{.CurrentSong.Thumbnail}}" style="height: 50px;">
-    <span id="player_title" style="margin-left: 6px;">{{.CurrentSong.Title}}</span>
+<div id="player" {{if .CurrentSong}}{{else}}hidden{{end}}>
+    <img id="player_thumb" src="{{if .CurrentSong}}{{.CurrentSong.Thumbnail}}{{end}}" style="height: 50px;">
+    <span id="player_title" style="margin-left: 6px;">{{if .CurrentSong}}{{.CurrentSong.Title}}{{end}}</span>
     <button id="play_btn" class="btn btn-primary" {{if .Player.Playing}}hidden{{end}}
-        onClick="wsplay(event, '{{.CurrentSong.ID}}')"><span class="material-symbols-outlined align-middle">
+        onClick="wsplay(event, '{{if .CurrentSong}}{{.CurrentSong.ID}}{{end}}')"><span
+            class="material-symbols-outlined align-middle">
             play_circle
         </span></button>
     <button id="stop_btn" class="btn btn-primary" {{if not .Player.Playing}}hidden{{end}} onclick="wsstop()"><span
@@ -239,5 +247,4 @@
             pause_circle
         </span></button>
 </div>
-{{end}}
 {{end}}

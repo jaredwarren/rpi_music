@@ -49,9 +49,7 @@
         if (!confirm("are you sure?")) {
             return;
         }
-
         loadingModal.show();
-
         fetch('/rfid/' + rfid + '/' + song_id, { method: 'DELETE' })
             .then(async response => {
                 window.location.reload();
@@ -64,19 +62,19 @@
     function selectByRFID(rfid) {
         rfid = rfid.replaceAll(":", "")
         console.log(`> Serial Number: ${rfid}`);
-        var r = document.querySelectorAll("tr");
+        var r = document.querySelectorAll("tr.active");
         for (let i = 0; i < r.length; i++) {
-            var el = r.length[i];
+            var el = r[i];
             if (el) {
                 el.classList.remove("active");
             }
         }
 
         var el = document.getElementById(rfid)
-        // TODO: check if el is undefined
-        // TODO: un "active" everything
-        el.scrollIntoView();
-        el.classList.add("active");
+        if (el){
+            el.scrollIntoView();
+            el.classList.add("active");
+        }
     }
 
 </script>

@@ -98,7 +98,7 @@ func Play(song *model.Song) error {
 		cp.mu.Lock()
 		defer cp.mu.Unlock()
 		cmd.Wait()
-		cp.Playing = false
+		Stop()
 	}()
 
 	cp.Playing = true
@@ -114,6 +114,8 @@ func Stop() {
 			cp.cmd.Process.Kill()
 		}
 	}
+	cp.currentSong = nil
+	cp.Playing = false
 }
 
 func GetPlaying() *model.Song {

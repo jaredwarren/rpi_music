@@ -27,6 +27,7 @@ type DBer interface {
 
 	// RFID stuff
 	GetRFIDSong(rfid string) (*model.RFIDSong, error)
+	GetSongRFID(songID string) (*model.RFIDSong, error)
 	AddRFIDSong(rfid, songID string) error
 	RemoveRFIDSong(rfid, songID string) error
 	DeleteRFID(id string) error
