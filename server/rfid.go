@@ -130,7 +130,6 @@ func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request)
 
 	// 3. Insert RFID if set
 	rfid := r.PostForm.Get("rfid")
-	fmt.Printf(" - - - -%+v\n", r.PostForm)
 	rfid = strings.ReplaceAll(rfid, ":", "")
 	if rfid == "" {
 		s.httpError(w, fmt.Errorf("rfid required"), http.StatusInternalServerError)
