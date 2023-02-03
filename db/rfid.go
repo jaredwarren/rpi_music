@@ -41,6 +41,7 @@ func (s *SongDB) ListRFIDSongs() ([]*model.RFIDSong, error) {
 	return rss, err
 }
 
+// GetRFIDSong
 func (s *SongDB) GetRFIDSong(rfid string) (*model.RFIDSong, error) {
 	var rs *model.RFIDSong
 	err := s.db.View(func(tx *bolt.Tx) error {
@@ -55,9 +56,6 @@ func (s *SongDB) GetRFIDSong(rfid string) (*model.RFIDSong, error) {
 		}
 		return nil
 	})
-	if rs == nil {
-		// TODO: return err not found
-	}
 	return rs, err
 }
 

@@ -129,7 +129,7 @@ func (r *RFIDReader) Start() {
 				// TODO: play error
 				continue
 			}
-			if len(rfidSong.Songs) == 0 {
+			if rfidSong == nil || len(rfidSong.Songs) == 0 {
 				r.logger.Error("no songs"+rfid, log.Error(err))
 				// TODO: play error
 				continue

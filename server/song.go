@@ -40,7 +40,7 @@ func (s *Server) JSONGetSongByRFID(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if len(rs.Songs) == 0 {
+	if rs == nil || len(rs.Songs) == 0 {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "rfid has now song",
 		})
