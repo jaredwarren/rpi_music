@@ -27,6 +27,7 @@ type Logger interface {
 	Fatal(string, ...Field)
 	Panic(string, ...Field)
 	SetLevel(Level)
+	With(...Field) Logger
 }
 
 // std "log" interface
@@ -69,20 +70,37 @@ func Error(v error) Field {
 	}
 }
 
+var globalLogger Logger
+
+func Get() Logger {
+	if globalLogger == nil {
+		// Return default
+		globalLogger = NewDefault()
+	}
+	return globalLogger
+}
+
+func NewDefault() Logger {
+	return NewStdLogger(Info)
+}
+
 func NewStdLogger(l Level) Logger {
-	return &StdLogger{
+	globalLogger = &StdLogger{
 		Level: l,
 		Log:   log.New(os.Stdout, "", 5),
 	}
+	return globalLogger
 }
 
 type StdLogger struct {
-	Level Level
-	Log   ILog
+	Level  Level
+	Log    ILog
+	fields []Field
 }
 
 func (l *StdLogger) Debug(msg string, fields ...Field) {
 	if l.Level <= Debug {
+		fields = append(l.fields, fields...)
 		f := getLastFile()
 		if f != "" {
 			fields = append(fields, Any("caller", f))
@@ -94,6 +112,7 @@ func (l *StdLogger) Debug(msg string, fields ...Field) {
 
 func (l *StdLogger) Info(msg string, fields ...Field) {
 	if l.Level <= Info {
+		fields = append(l.fields, fields...)
 		f := getLastFile()
 		if f != "" {
 			fields = append(fields, Any("caller", f))
@@ -105,6 +124,7 @@ func (l *StdLogger) Info(msg string, fields ...Field) {
 
 func (l *StdLogger) Warn(msg string, fields ...Field) {
 	if l.Level <= Warn {
+		fields = append(l.fields, fields...)
 		f := getLastFile()
 		if f != "" {
 			fields = append(fields, Any("caller", f))
@@ -115,6 +135,7 @@ func (l *StdLogger) Warn(msg string, fields ...Field) {
 }
 
 func (l *StdLogger) Error(msg string, fields ...Field) {
+	fields = append(l.fields, fields...)
 	f := getLastFile()
 	if f != "" {
 		fields = append(fields, Any("caller", f))
@@ -123,7 +144,9 @@ func (l *StdLogger) Error(msg string, fields ...Field) {
 	l.printStd(cc("[Error]"), msg, fields...)
 }
 
+// Fatal log and quit
 func (l *StdLogger) Fatal(msg string, fields ...Field) {
+	fields = append(l.fields, fields...)
 	f := getLastFile()
 	if f != "" {
 		fields = append(fields, Any("caller", f))
@@ -133,6 +156,8 @@ func (l *StdLogger) Fatal(msg string, fields ...Field) {
 	l.printStd(cc("[FATAL]"), msg, fields...)
 	os.Exit(1)
 }
+
+// Panic log and panic
 func (l *StdLogger) Panic(msg string, fields ...Field) {
 	f := getLastFile()
 	if f != "" {
@@ -142,6 +167,15 @@ func (l *StdLogger) Panic(msg string, fields ...Field) {
 	cc := color.New(color.FgHiRed, color.Bold).SprintFunc()
 	l.printStd(cc("[PANIC]"), msg, fields...)
 	panic(msg)
+}
+
+// With returns copy with appended fields
+func (l *StdLogger) With(fields ...Field) Logger {
+	return &StdLogger{
+		Level:  l.Level,
+		Log:    l.Log,
+		fields: append(l.fields, fields...),
+	}
 }
 
 func (l *StdLogger) SetLevel(ll Level) {
@@ -208,3 +242,4 @@ func (l *NoOpLogger) Error(string, ...Field) {}
 func (l *NoOpLogger) Fatal(string, ...Field) {}
 func (l *NoOpLogger) Panic(string, ...Field) {}
 func (l *NoOpLogger) SetLevel(Level)         {}
+func (l *NoOpLogger) With(...Field) Logger   { return NewNoOpLogger() }
