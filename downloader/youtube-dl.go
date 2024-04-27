@@ -81,7 +81,7 @@ func getVideoInfo(videoID string) (map[string]interface{}, error) {
 		"-J",
 	}
 	args = append(args, videoID)
-	cmd := exec.Command("youtube-dl", args...)
+	cmd := exec.Command("yt-dlp", args...)
 	std, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func GetVideoFilename(videoID string) (string, error) {
 		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
 	}
 	args = append(args, videoID)
-	cmd := exec.Command("youtube-dl", args...)
+	cmd := exec.Command("yt-dlp", args...)
 	std, err := cmd.Output()
 
 	// clean output
@@ -160,7 +160,7 @@ func downloadVideoThumb(videoID string) (string, error) {
 		"-o", `thumb_files/%(title)s-%(id)s`,
 	}
 	args = append(args, videoID)
-	cmd := exec.Command("youtube-dl", args...)
+	cmd := exec.Command("yt-dlp", args...)
 	std, err := cmd.Output()
 
 	// parse output because I can't find a better way to get thumb name
