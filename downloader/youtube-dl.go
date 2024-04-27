@@ -115,16 +115,19 @@ func GetVideoFilename(videoID string) (string, error) {
 
 func downloadVideo(videoID string) error {
 	args := []string{
-		"--ignore-errors",
 		"--no-call-home",
 		"--no-cache-dir",
 		"--restrict-filenames",
-		"-f", "bestaudio",
+		"--audio-quality", "0",
 		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
 	}
 	args = append(args, videoID)
-	cmd := exec.Command("youtube-dl", args...)
+	cmd := exec.Command("yt-dlp", args...)
 	_, err := cmd.Output()
+
+	//youtube-dl --ignore-errors --no-call-home --no-cache-dir --restrict-filenames -f bestaudio -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
+	// yt-dlp -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
+
 	return err
 }
 
