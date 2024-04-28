@@ -55,6 +55,7 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 	})
 
 	if err := g.Wait(); err != nil {
+		fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", err)
 		logger.Error("error downloading video", log.Error(err), log.Any("id", videoID))
 		return "", nil, err
 	}
@@ -135,7 +136,7 @@ func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error
 	// download video
 	filename, err := downloadVideoThumb(video.ID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("download video thumb error: %w", err)
 	}
 
 	// validate that file exists
@@ -143,7 +144,7 @@ func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error
 		return "", fmt.Errorf("could not get thumb filename")
 	}
 	if _, err := os.Stat(filename); err != nil {
-		return "", err
+		return "", fmt.Errorf("os.stat error: %w", err)
 	}
 
 	return filename, nil
@@ -165,7 +166,7 @@ func downloadVideoThumb(videoID string) (string, error) {
 
 	// parse output because I can't find a better way to get thumb name
 	outStr := string(std)
-	var thumbRegex = regexp.MustCompile(`Writing thumbnail to: (.+?)\n`)
+	var thumbRegex = regexp.MustCompile(`Writing .+? to: (.+?)(\n|$)`)
 	result := thumbRegex.FindStringSubmatch(outStr)
 	if len(result) == 0 {
 		return "", fmt.Errorf("invalid results from download:%s", outStr)

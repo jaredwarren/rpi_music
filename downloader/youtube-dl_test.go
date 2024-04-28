@@ -26,5 +26,5 @@ func TestDownloadVideo(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "song_files/Could_Have_Been_Me-ZJocdnMvTYs.webm", f)
 	assert.Equal(t, "Could Have Been Me", vv.Title)
-	// TODO: clean up files
+	// _ = os.RemoveAll("./song_files")
 }

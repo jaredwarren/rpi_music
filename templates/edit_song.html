@@ -1,0 +1,60 @@
+{{template "base" .}}
+
+{{define "title"}}Song List{{end}}
+
+{{define "nav"}}
+<div class="container-fluid">
+    <ul class="nav nav-pills">
+        <li class="nav-item">
+            <a class="nav-link" href="/songs"><span class="material-symbols-outlined align-middle">library_music</span>
+                <span>Songs</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link disabled" href="/rfids"><span class="material-symbols-outlined align-middle">nfc</span>
+                <span>Cards</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span>
+                <span class="align-middle"></span></a>
+        </li>
+    </ul>
+</div>
+{{end}}
+
+{{define "main"}}
+<div>
+    TODO:
+</div>
+{{end}}
+
+{{define "player"}}
+{{if .CurrentSong}}
+<style>
+    #player {
+        height: 70px;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        box-shadow: 0px -6px 13px 0px lightgrey;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px;
+    }
+</style>
+<div id="player">
+    <img id="player_thumb" src="{{.CurrentSong.Thumbnail}}" style="height: 50px;">
+    <span id="player_title" style="margin-left: 6px;">{{.CurrentSong.Title}}</span>
+    <button id="play_btn" class="btn btn-primary" {{if .Player.Playing}}hidden{{end}}
+        onClick="wsplay(event, '{{.CurrentSong.ID}}')"><span class="material-symbols-outlined align-middle">
+            play_circle
+        </span></button>
+    <button id="stop_btn" class="btn btn-primary" {{if not .Player.Playing}}hidden{{end}} onclick="wsstop()"><span
+            class="material-symbols-outlined align-middle">
+            pause_circle
+        </span></button>
+</div>
+{{end}}
+{{end}}
