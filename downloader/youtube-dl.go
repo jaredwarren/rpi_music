@@ -32,7 +32,7 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 	}
 
 	// https://music.youtube.com/watch?v=4qwIhKfv_Dc&si=ST0cFoZIDwj5DKDI
-	videoID = strings.Replace(videoID, "//music.", "", 1)
+	videoID = strings.Replace(videoID, "//music.", "//", 1)
 
 	g := new(errgroup.Group)
 
