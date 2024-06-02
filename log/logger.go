@@ -111,6 +111,7 @@ func (l *StdLogger) Debug(msg string, fields ...Field) {
 }
 
 func (l *StdLogger) Info(msg string, fields ...Field) {
+	l.printStd("[Info]:::", fmt.Sprintf("%+v", l.Level))
 	if l.Level <= Info {
 		fields = append(l.fields, fields...)
 		f := getLastFile()
