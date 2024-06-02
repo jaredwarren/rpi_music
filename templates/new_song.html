@@ -164,7 +164,8 @@
                             <div class="mb-3">
                                 <label for="url" class="form-label">URL:</label>
                                 <div class="input-group mb-3">
-                                    <input class="form-control" id="url" name="url" type="url" value="{{.Song.URL}}" placeholder="youtube.com" required>
+                                    <!-- Note: url input not type=url because some "share" links add title. Title is filtered out on backend -->
+                                    <input class="form-control" id="url" name="url" type="text" value="{{.Song.URL}}" placeholder="youtube.com" required>
                                     <div class="input-group-text">
                                         <input class="form-check-input mt-0" type="checkbox" name="force" value="true"
                                             aria-label="Checkbox for following text input">
