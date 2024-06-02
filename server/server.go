@@ -76,6 +76,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// Download Song
 	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongFormHandler).Methods(http.MethodGet) // GET /song/new
 	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)    // POST /song/new
+	sub.HandleFunc("/download", s.DownloadSong).Methods(http.MethodPost)                               // Raw download
 
 	// Assign rfid to song
 	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongFormHandler).Methods(http.MethodGet)

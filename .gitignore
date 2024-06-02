@@ -10,3 +10,8 @@ config/config.yml
 pplayer
 notes.md
 stuff/
+
+downloader/song_files/*
+
+airpl*
+flight*

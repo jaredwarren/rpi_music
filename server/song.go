@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -178,6 +179,11 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, tpl, fullData)
 }
 
+// DownloadSong raw download song, same as new song, but easier url
+func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
+	s.NewSongFormHandler(w, r)
+}
+
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	err = r.ParseMultipartForm(32 << 20)
@@ -228,11 +234,14 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
+var urlreg = regexp.MustCompile(`.+?(https?:)`)
+
 func (s *Server) downloadSongHandler(r *http.Request) (*model.Song, error) {
 	url := r.PostForm.Get("url")
 	if url == "" {
 		return nil, fmt.Errorf("missing url")
 	}
+	url = urlreg.ReplaceAllString(url, "${1}")
 
 	force := r.PostForm.Get("force") != ""
 	if !force {
