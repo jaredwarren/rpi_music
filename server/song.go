@@ -194,6 +194,8 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
 
+	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", r.PostForm)
+
 	song, err := s.downloadSongHandler(r)
 	if err != nil {
 		s.logger.Error(err.Error())
