@@ -45,6 +45,8 @@ func main() {
 		}()
 	}
 
+	logger.Info("->1")
+
 	// Init Player
 	player.InitPlayer(logger)
 	defer func() {
@@ -58,17 +60,23 @@ func main() {
 	}
 	defer sdb.Close()
 
+	logger.Info("->2")
+
 	// Migrate DB
 	db.Up(sdb)
 	if err != nil {
 		logger.Panic("error opening db", log.Error(err))
 	}
 
+	logger.Info("->3")
+
 	// Init RFID
 	if viper.GetBool("rfid-enabled") {
 		r := rfid.InitRFIDReader(sdb, logger)
 		defer r.Close()
 	}
+
+	logger.Info("->4")
 
 	// Init Server
 	htmlServer := server.StartHTTPServer(&server.Config{

@@ -37,6 +37,7 @@ type HTMLServer struct {
 
 // Start launches the HTML Server
 func StartHTTPServer(cfg *Config) *HTMLServer {
+	cfg.Logger.Info("->StartHTTPServer")
 	// Setup Context
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -192,6 +193,8 @@ func New(db db.DBer, l log.Logger) *Server {
 		dl = &downloader.YoutubeDLDownloader{}
 		l.Info("using 'youtube-dl' downloader")
 	}
+
+	l.Info("->New server")
 
 	return &Server{
 		db:         db,
