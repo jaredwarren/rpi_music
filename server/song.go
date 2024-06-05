@@ -184,7 +184,7 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	logger := log.NewStdLogger(log.Info)
 	logger.Info("[DownloadSong] start")
 
-	err := r.ParseMultipartForm(32 << 20)
+	err := r.ParseForm()
 	if err != nil {
 		logger.Error(err.Error())
 		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
