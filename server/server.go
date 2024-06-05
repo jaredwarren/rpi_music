@@ -117,6 +117,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 		http.Redirect(w, r, "/songs", http.StatusFound)
 	})
 
+	cfg.Logger.Info("-> HTMLServer")
 	// Create the HTML Server
 	htmlServer := HTMLServer{
 		logger: cfg.Logger,
@@ -194,7 +195,7 @@ func New(db db.DBer, l log.Logger) *Server {
 		l.Info("using 'youtube-dl' downloader")
 	}
 
-	l.Info("->New server")
+	l.Info("-> New server")
 
 	return &Server{
 		db:         db,

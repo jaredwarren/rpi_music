@@ -88,6 +88,8 @@ func main() {
 	})
 	defer htmlServer.StopHTTPServer()
 
+	logger.Info("->5")
+
 	// Ready
 	if viper.GetBool("startup.play") {
 		go player.Play(&model.Song{
@@ -96,6 +98,8 @@ func main() {
 	} else {
 		go player.Beep()
 	}
+
+	logger.Info("->6")
 
 	// Shutdown
 	sigChan := make(chan os.Signal, 1)

@@ -181,7 +181,58 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 
 // DownloadSong raw download song, same as new song, but easier url
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
-	s.NewSongFormHandler(w, r)
+	logger := log.NewStdLogger(log.Info)
+	logger.Info("[DownloadSong] start")
+
+	err := r.ParseMultipartForm(32 << 20)
+	if err != nil {
+		logger.Error(err.Error())
+		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
+		return
+	}
+	logger.Info("[DownloadSong] form", log.Any("form", r.PostForm))
+
+	url := r.PostForm.Get("url")
+	force := r.PostForm.Get("force") != ""
+
+	go func(url string, force bool) {
+		logger := log.NewStdLogger(log.Info)
+		song, err := s.downloadSong(url, force)
+		if err != nil {
+			logger.Error(err.Error())
+			return
+		}
+
+		// 2. Store
+		err = s.db.UpdateSong(song)
+		if err != nil {
+			logger.Error(err.Error())
+			return
+		}
+
+		// 3. Insert RFID if set
+		rfid := r.PostForm.Get("rfid")
+		rfid = strings.ReplaceAll(rfid, ":", "")
+		if rfid != "" {
+			// Make sure rfid doesn't exist yet.
+			rfidSong, err := s.db.GetRFIDSong(rfid)
+			if err != nil {
+				logger.Error("[DownloadSong] RFIDExists error", log.Error(err))
+				return
+			} else if rfidSong != nil {
+				logger.Error(fmt.Sprintf("[DownloadSong] rfid aready assigned! (%+v)", rfidSong))
+				return
+			} // else continue
+
+			err = s.db.AddRFIDSong(rfid, song.ID)
+			if err != nil {
+				logger.Error("[DownloadSong] AddRFIDSong error", log.Error(err))
+				return
+			}
+		}
+	}(url, force)
+
+	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -242,12 +293,16 @@ var urlreg = regexp.MustCompile(`.+?(https?:)`)
 
 func (s *Server) downloadSongHandler(r *http.Request) (*model.Song, error) {
 	url := r.PostForm.Get("url")
+	force := r.PostForm.Get("force") != ""
+	return s.downloadSong(url, force)
+}
+
+func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 	if url == "" {
 		return nil, fmt.Errorf("missing url")
 	}
 	url = urlreg.ReplaceAllString(url, "${1}")
 
-	force := r.PostForm.Get("force") != ""
 	if !force {
 		// check if file exists
 		filename, err := downloader.GetVideoFilename(url)
