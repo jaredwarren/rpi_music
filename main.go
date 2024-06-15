@@ -45,40 +45,37 @@ func main() {
 		}()
 	}
 
-	logger.Info("->1")
-
 	// Init Player
+	logger.Debug("Init Player")
 	player.InitPlayer(logger)
 	defer func() {
 		player.Stop()
 	}()
 
 	// Init DB
+	logger.Debug("Init DB")
 	sdb, err := db.NewSongDB(DBPath)
 	if err != nil {
 		logger.Panic("error opening db", log.Error(err))
 	}
 	defer sdb.Close()
 
-	logger.Info("->2")
-
 	// Migrate DB
+	logger.Debug("Migrage DB")
 	db.Up(sdb)
 	if err != nil {
 		logger.Panic("error opening db", log.Error(err))
 	}
 
-	logger.Info("->3")
-
 	// Init RFID
 	if viper.GetBool("rfid-enabled") {
+		logger.Debug("Init RFID")
 		r := rfid.InitRFIDReader(sdb, logger)
 		defer r.Close()
 	}
 
-	logger.Info("->4")
-
 	// Init Server
+	logger.Debug("Init Server")
 	htmlServer := server.StartHTTPServer(&server.Config{
 		Host:         viper.GetString("host"),
 		ReadTimeout:  350 * time.Second,
@@ -87,8 +84,6 @@ func main() {
 		Logger:       logger,
 	})
 	defer htmlServer.StopHTTPServer()
-
-	logger.Info("->5")
 
 	// Ready
 	if viper.GetBool("startup.play") {
@@ -99,7 +94,7 @@ func main() {
 		go player.Beep()
 	}
 
-	logger.Info("->6")
+	logger.Info("Ready...")
 
 	// Shutdown
 	sigChan := make(chan os.Signal, 1)

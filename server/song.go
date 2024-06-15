@@ -181,11 +181,8 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 
 // DownloadSong raw download song, same as new song, but easier url
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("~~~~~~~~~~~~~~~\n DownloadSong:s.Logger:%+v\n\n", s.logger)
-
 	logger := log.NewStdLogger(log.Info)
 	logger.Info("[DownloadSong] start")
-
 	fmt.Printf("~~~~~~~~~~~~~~~\n DownloadSong:Logger:%+v\n\n", s.logger)
 
 	err := r.ParseForm()
@@ -242,8 +239,6 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("~~~~~~~~~~~~~~~\n NewSongHandler:s.Logger:%+v\n\n", s.logger)
-
 	var err error
 	err = r.ParseMultipartForm(32 << 20)
 	if err != nil {
@@ -252,10 +247,6 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
-
-	s.logger.Debug("new song = " + r.PostForm.Get("url"))
-
-	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", r.PostForm)
 
 	song, err := s.downloadSongHandler(r)
 	if err != nil {
