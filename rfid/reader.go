@@ -172,6 +172,9 @@ func (r *RFIDReader) ReadID() string {
 				if len(data) > 0 {
 					fmt.Printf("~~~~~~~~~~~~~~~\n rfid:%+v\n\n", hex.EncodeToString(data))
 				}
+				if err != nil {
+					fmt.Printf("~~~~~~~~~~~~~~~\n rfid:err:%+v\n\n", err)
+				}
 
 				// Prevent trying to write to closed channel
 				if timedOut {
