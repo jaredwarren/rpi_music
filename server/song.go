@@ -181,16 +181,22 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 
 // DownloadSong raw download song, same as new song, but easier url
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("~~~~~~~~~~~~~~~\n DownloadSong:s.Logger:%+v\n\n", s.logger)
+
 	logger := log.NewStdLogger(log.Info)
 	logger.Info("[DownloadSong] start")
+
+	fmt.Printf("~~~~~~~~~~~~~~~\n DownloadSong:Logger:%+v\n\n", s.logger)
 
 	err := r.ParseForm()
 	if err != nil {
 		logger.Error(err.Error())
-		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
+		s.httpError(w, fmt.Errorf("DownloadSong|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
 	logger.Info("[DownloadSong] form", log.Any("form", r.PostForm))
+
+	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", r.PostForm)
 
 	url := r.PostForm.Get("url")
 	force := r.PostForm.Get("force") != ""
@@ -236,6 +242,8 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("~~~~~~~~~~~~~~~\n NewSongHandler:s.Logger:%+v\n\n", s.logger)
+
 	var err error
 	err = r.ParseMultipartForm(32 << 20)
 	if err != nil {

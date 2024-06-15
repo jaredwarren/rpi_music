@@ -123,6 +123,7 @@ func (r *RFIDReader) Start() {
 	go func() {
 		for {
 			rfid := r.ReadID()
+
 			rfidSong, err := r.db.GetRFIDSong(rfid)
 			if err != nil {
 				r.logger.Error("GetRFIDSong error", log.Error(err))
@@ -168,6 +169,7 @@ func (r *RFIDReader) ReadID() string {
 			// trying to read UID
 			if r.IsReady {
 				data, err := r.RFID.ReadUID(5 * time.Second) // Note: timeout is IRQ timeout
+				fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", hex.EncodeToString(data))
 				// Prevent trying to write to closed channel
 				if timedOut {
 					return
