@@ -3,6 +3,7 @@ package rfid
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jaredwarren/rpi_music/db"
@@ -172,7 +173,7 @@ func (r *RFIDReader) ReadID() string {
 				if len(data) > 0 {
 					fmt.Printf("~~~~~~~~~~~~~~~\n rfid:%+v\n\n", hex.EncodeToString(data))
 				}
-				if err != nil {
+				if !isTimeoutError(err) {
 					fmt.Printf("~~~~~~~~~~~~~~~\n rfid:err:%+v\n\n", err)
 				}
 
@@ -195,6 +196,13 @@ func (r *RFIDReader) ReadID() string {
 
 	data := <-cb
 	return hex.EncodeToString(data)
+}
+
+func isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "timeout waiting for IRQ")
 }
 
 func (r *RFIDReader) Close() {
