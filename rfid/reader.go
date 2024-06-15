@@ -169,7 +169,10 @@ func (r *RFIDReader) ReadID() string {
 			// trying to read UID
 			if r.IsReady {
 				data, err := r.RFID.ReadUID(5 * time.Second) // Note: timeout is IRQ timeout
-				fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", hex.EncodeToString(data))
+				if len(data) > 0 {
+					fmt.Printf("~~~~~~~~~~~~~~~\n rfid:%+v\n\n", hex.EncodeToString(data))
+				}
+
 				// Prevent trying to write to closed channel
 				if timedOut {
 					return
