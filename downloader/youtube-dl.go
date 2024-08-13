@@ -7,10 +7,10 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
-	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -33,40 +33,50 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 
 	// https://music.youtube.com/watch?v=4qwIhKfv_Dc&si=ST0cFoZIDwj5DKDI
 	videoID = strings.Replace(videoID, "//music.", "//", 1)
-	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", videoID)
+	fmt.Printf("~~~~~~~~~~~~~~~\n clean url:%+v\n\n", videoID)
 
-	g := new(errgroup.Group)
+	var wg sync.WaitGroup
+
+	// g := new(errgroup.Group)
 
 	// get title
-	g.Go(func() error {
+	wg.Add(1)
+	go func() error {
+		defer wg.Done()
 		info, err := getVideoInfo(videoID)
 		if err == nil {
 			resp.Title = info["title"].(string)
 		}
 		fmt.Printf("~~~~~~~~~~~~~~~\n getVideoInfo err::\n%+v\n\n", err)
 		return err
-	})
+	}()
 
 	// get filename
-	g.Go(func() error {
+	wg.Add(1)
+	go func() error {
+		defer wg.Done()
 		var err error
 		filename, err = GetVideoFilename(videoID)
 		fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename err:\n%+v\n\n", err)
 		return err
-	})
+	}()
 
 	// download video
-	g.Go(func() error {
+	wg.Add(1)
+	go func() error {
+		defer wg.Done()
 		err := downloadVideo(videoID)
 		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err::\n%+v\n\n", err)
 		return err
-	})
+	}()
 
-	if err := g.Wait(); err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", err)
-		logger.Error("error downloading video", log.Error(err), log.Any("id", videoID))
-		return "", nil, err
-	}
+	wg.Wait()
+
+	// if err := g.Wait(); err != nil {
+	// 	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", err)
+	// 	logger.Error("error downloading video", log.Error(err), log.Any("id", videoID))
+	// 	return "", nil, err
+	// }
 
 	// validate that file exists
 	if filename == "" {
@@ -121,6 +131,8 @@ func GetVideoFilename(videoID string) (string, error) {
 	cmd := exec.Command("yt-dlp", args...)
 	std, err := cmd.Output()
 
+	fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename out:\n%+v\n\n", string(std))
+
 	// clean output
 	outStr := string(std)
 	outStr = strings.Trim(outStr, `"`)
@@ -141,9 +153,9 @@ func downloadVideo(videoID string) error {
 	std, err := cmd.Output()
 	if err != nil {
 		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err:\n%+v\n\n", err)
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo out:\n%+v\n\n", std)
 		return err
 	}
+	fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo out:\n%+v\n\n", string(std))
 
 	//youtube-dl --ignore-errors --no-call-home --no-cache-dir --restrict-filenames -f bestaudio -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
 	// yt-dlp -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
