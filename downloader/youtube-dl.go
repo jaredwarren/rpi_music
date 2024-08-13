@@ -51,21 +51,22 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 		return err
 	}()
 
-	// get filename
-	wg.Add(1)
-	go func() error {
-		defer wg.Done()
-		var err error
-		filename, err = GetVideoFilename(videoID)
-		fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename err:\n%+v\n\n", err)
-		return err
-	}()
+	// // get filename
+	// wg.Add(1)
+	// go func() error {
+	// 	defer wg.Done()
+	// 	var err error
+	// 	filename, err = GetVideoFilename(videoID)
+	// 	fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename err:\n%+v\n\n", err)
+	// 	return err
+	// }()
 
 	// download video
 	wg.Add(1)
 	go func() error {
 		defer wg.Done()
-		err := downloadVideo(videoID)
+		var err error
+		filename, err = downloadVideo(videoID)
 		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err::\n%+v\n\n", err)
 		return err
 	}()
@@ -140,7 +141,7 @@ func GetVideoFilename(videoID string) (string, error) {
 	return outStr, err
 }
 
-func downloadVideo(videoID string) error {
+func downloadVideo(videoID string) (string, error) {
 	args := []string{
 		"--no-call-home",
 		"--no-cache-dir",
@@ -153,15 +154,24 @@ func downloadVideo(videoID string) error {
 	std, err := cmd.Output()
 	if err != nil {
 		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err:\n%+v\n\n", err)
-		return err
+		return "", err
 	}
 	fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo out:\n%+v\n\n", string(std))
 
 	//youtube-dl --ignore-errors --no-call-home --no-cache-dir --restrict-filenames -f bestaudio -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
 	// yt-dlp -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
 
-	return err
+	// [Merger] Merging formats into "song_files/The_Bare_Necessities_from_The_Jungle_Book-08NlhjpVFsU.mp4"
+
+	matches := matchRegex.FindStringSubmatch(string(std))
+	if len(matches) > 1 {
+		return matches[1], nil
+	}
+
+	return "", fmt.Errorf("couldn't find file")
 }
+
+var matchRegex = regexp.MustCompile(`\[Merger\] Merging formats into "song_files/(.+?)"`)
 
 func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error) {
 	// download video
