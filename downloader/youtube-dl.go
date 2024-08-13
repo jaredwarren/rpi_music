@@ -165,7 +165,10 @@ func downloadVideo(videoID string) (string, error) {
 
 	matches := matchRegex.FindStringSubmatch(string(std))
 	if len(matches) > 1 {
-		return matches[1], nil
+		filename := matches[1]
+		if filename != "" {
+			return "song_files/" + filename, nil
+		}
 	}
 
 	return "", fmt.Errorf("couldn't find file")
