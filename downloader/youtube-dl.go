@@ -3,6 +3,7 @@ package downloader
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
@@ -11,10 +12,6 @@ import (
 
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
-)
-
-var (
-	logger = log.NewStdLogger(log.Debug)
 )
 
 type YoutubeDLDownloader struct{}
@@ -81,6 +78,10 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 
 	// validate that file exists
 	if filename == "" {
+		newestFile, _ := getNewestFile("song_files/")
+
+		fmt.Printf("~~~~~~~~~~~~~~~\n newestFile:%+v\n\n", newestFile)
+
 		return "", nil, fmt.Errorf("could not get filename")
 	}
 	if _, err := os.Stat(filename); err != nil {
@@ -89,6 +90,27 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 
 	return filename, resp, nil
 
+}
+
+func getNewestFile(dir string) (string, error) {
+	files, _ := ioutil.ReadDir(dir)
+	var newestFile string
+	var newestTime int64 = 0
+	for _, f := range files {
+		fi, err := os.Stat(dir + f.Name())
+		if err != nil {
+			return "", fmt.Errorf("[getNewestFile] os.Stat")
+		}
+		currTime := fi.ModTime().Unix()
+		if currTime > newestTime {
+			newestTime = currTime
+			newestFile = f.Name()
+		}
+	}
+	if newestFile == "" {
+		return "", fmt.Errorf("[getNewestFile] no file")
+	}
+	return newestFile, nil
 }
 
 func getVideoInfo(videoID string) (map[string]interface{}, error) {
@@ -159,7 +181,9 @@ func downloadVideo(videoID string) (string, error) {
 	fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo out:\n%+v\n\n", string(std))
 
 	//youtube-dl --ignore-errors --no-call-home --no-cache-dir --restrict-filenames -f bestaudio -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
-	// yt-dlp -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
+	// yt-dlp -j -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
+
+	// yt-dlp --no-call-home --no-cache-dir --restrict-filenames --audio-quality 0 -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
 
 	// [Merger] Merging formats into "song_files/The_Bare_Necessities_from_The_Jungle_Book-08NlhjpVFsU.mp4"
 
