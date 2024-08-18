@@ -70,12 +70,6 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 
 	wg.Wait()
 
-	// if err := g.Wait(); err != nil {
-	// 	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", err)
-	// 	logger.Error("error downloading video", log.Error(err), log.Any("id", videoID))
-	// 	return "", nil, err
-	// }
-
 	// validate that file exists
 	if filename == "" {
 		newestFile, _ := getNewestFile("song_files/")
