@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -147,6 +148,10 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	sort.Slice(songs, func(i, j int) bool {
+		return songs[i].CreatedAt.Before(songs[j].CreatedAt)
+	})
 
 	fullData := map[string]interface{}{
 		"Songs":       songs,
