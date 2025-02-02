@@ -248,7 +248,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	force := r.PostForm.Get("force") != ""
 	rfid := r.PostForm.Get("rfid")
 
-	go s.newSong(url, rfid, force)
+	s.newSong(url, rfid, force)
 
 	http.Redirect(w, r, "/songs", http.StatusFound)
 }
