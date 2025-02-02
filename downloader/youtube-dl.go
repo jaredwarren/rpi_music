@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -48,6 +47,8 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 		return err
 	}()
 
+	// TODO: see if I can download both video and tumb
+
 	// // get filename
 	// wg.Add(1)
 	// go func() error {
@@ -83,7 +84,6 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 	}
 
 	return filename, resp, nil
-
 }
 
 func getNewestFile(dir string) (string, error) {
@@ -107,24 +107,18 @@ func getNewestFile(dir string) (string, error) {
 	return newestFile, nil
 }
 
-func getVideoInfo(videoID string) (map[string]interface{}, error) {
-	args := []string{
-		"--ignore-errors",
-		"--no-call-home",
-		"--no-cache-dir",
-		"--skip-download",
-		"--restrict-filenames",
-		"-J",
-	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
+var (
+	getVideoInfoCmd = NewDLCommand("yt-dlp --ignore-errors --no-call-home --no-cache-dir --skip-download --restrict-filenames -J")
+)
+
+func getVideoInfo(videoID string) (map[string]any, error) {
+	std, err := getVideoInfoCmd.ExecB(videoID)
 	if err != nil {
 		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo err:\n%+v\n\n", err)
 		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo out:\n%+v\n\n", std)
 		return nil, fmt.Errorf("cmd err:%w", err)
 	}
-	out := map[string]interface{}{}
+	out := map[string]any{}
 	err = json.Unmarshal(std, &out)
 	if err != nil {
 		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo out:\n%+v\n\n", std)
@@ -134,6 +128,7 @@ func getVideoInfo(videoID string) (map[string]interface{}, error) {
 }
 
 func GetVideoFilename(videoID string) (string, error) {
+	// TODO: fix this command, figure out how to make it work with `yt-dlp`
 	args := []string{
 		"--ignore-errors",
 		"--no-call-home",
@@ -155,88 +150,4 @@ func GetVideoFilename(videoID string) (string, error) {
 	outStr = strings.Trim(outStr, `"`)
 	outStr = strings.TrimSpace(outStr)
 	return outStr, err
-}
-
-func downloadVideo(videoID string) (string, error) {
-	args := []string{
-		"--no-call-home",
-		"--no-cache-dir",
-		"--restrict-filenames",
-		"--audio-quality", "0",
-		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
-	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
-	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err:\n%+v\n\n", err)
-		return "", err
-	}
-	fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo out:\n%+v\n\n", string(std))
-
-	//youtube-dl --ignore-errors --no-call-home --no-cache-dir --restrict-filenames -f bestaudio -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
-	// yt-dlp -j -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
-
-	// yt-dlp --no-call-home --no-cache-dir --restrict-filenames --audio-quality 0 -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
-
-	// [Merger] Merging formats into "song_files/The_Bare_Necessities_from_The_Jungle_Book-08NlhjpVFsU.mp4"
-
-	matches := matchRegex.FindStringSubmatch(string(std))
-	if len(matches) > 1 {
-		filename := matches[1]
-		if filename != "" {
-			return "song_files/" + filename, nil
-		}
-	}
-
-	return "", fmt.Errorf("couldn't find file")
-}
-
-var matchRegex = regexp.MustCompile(`\[Merger\] Merging formats into "song_files/(.+?)"`)
-
-func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error) {
-	// download video
-	filename, err := downloadVideoThumb(video.ID)
-	if err != nil {
-		return "", fmt.Errorf("download video thumb error: %w", err)
-	}
-
-	// validate that file exists
-	if filename == "" {
-		return "", fmt.Errorf("could not get thumb filename")
-	}
-	if _, err := os.Stat(filename); err != nil {
-		return "", fmt.Errorf("os.stat error: %w", err)
-	}
-
-	return filename, nil
-}
-
-func downloadVideoThumb(videoID string) (string, error) {
-	args := []string{
-		"--write-thumbnail",
-		"--ignore-errors",
-		"--no-call-home",
-		"--no-cache-dir",
-		"--skip-download",
-		"--restrict-filenames",
-		"-o", `thumb_files/%(title)s-%(id)s`,
-	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
-	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideoThumb err:\n%+v\n\n", err)
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideoThumb out:\n%+v\n\n", std)
-		return "", err
-	}
-
-	// parse output because I can't find a better way to get thumb name
-	outStr := string(std)
-	var thumbRegex = regexp.MustCompile(`Writing .+? to: (.+?)(\n|$)`)
-	result := thumbRegex.FindStringSubmatch(outStr)
-	if len(result) == 0 {
-		return "", fmt.Errorf("invalid results from download:%s", outStr)
-	}
-	return result[1], err
 }

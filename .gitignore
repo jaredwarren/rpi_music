@@ -10,6 +10,7 @@ config/config.yml
 pplayer
 notes.md
 stuff/
+*.ipynb
 
 downloader/song_files/*
 

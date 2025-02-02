@@ -1,13 +1,13 @@
 [Unit]
- Description=RFID Music player Service
- After=multi-user.target
+Description=RFID Music player Service
+After=multi-user.target
 
- [Service]
- Type=idle
- Environment="USERNANME=foo"
- Environment="PASSWORD=bar"
- WorkingDirectory=/home/pi/go/src/github.com/jaredwarren/rpi_music
- ExecStart=/home/pi/go/src/github.com/jaredwarren/rpi_music/pplayer > /home/pi/sample.log 2>&1
+[Service]
+Type=idle
+Environment="USERNANME=foo"
+Environment="PASSWORD=bar"
+WorkingDirectory=/home/pi/go/src/github.com/jaredwarren/rpi_music
+ExecStart=/home/pi/go/src/github.com/jaredwarren/rpi_music/pplayer > /home/pi/sample.log 2>&1
 
- [Install]
- WantedBy=multi-user.target
+[Install]
+WantedBy=multi-user.target

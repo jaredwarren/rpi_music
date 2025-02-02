@@ -183,7 +183,6 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	logger := log.NewStdLogger(log.Info)
 	logger.Info("[DownloadSong] start")
-	fmt.Printf("~~~~~~~~~~~~~~~\n DownloadSong:Logger:%+v\n\n", s.logger)
 
 	err := r.ParseForm()
 	if err != nil {
@@ -192,8 +191,6 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info("[DownloadSong] form", log.Any("form", r.PostForm))
-
-	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", r.PostForm)
 
 	url := r.PostForm.Get("url")
 	force := r.PostForm.Get("force") != ""

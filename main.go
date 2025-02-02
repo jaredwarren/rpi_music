@@ -22,7 +22,10 @@ const (
 )
 
 func main() {
-	logger := log.NewStdLogger(log.Debug)
+	logger, err := log.NewFileLogger("logs.out")
+	if err != nil {
+		panic(err.Error())
+	}
 
 	// Init Config
 	config.InitConfig(logger)
