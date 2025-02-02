@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"time"
@@ -11,20 +12,38 @@ import (
 */
 
 func NewFileLogger(path string) (Logger, error) {
+	i, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if i.IsDir() {
+		// TODO: append file?
+		return nil, fmt.Errorf("log file cannot be directory")
+	}
+
+	// try to delete file
+	_ = os.Remove(path)
+	// might not exist, so ignore error
+
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}
 
+	// Create a buffered writer
+	writer := bufio.NewWriter(f)
+
 	return &FileLogger{
 		Path: path,
 		f:    f,
+		w:    writer,
 	}, nil
 }
 
 type FileLogger struct {
 	Path   string
 	f      *os.File
+	w      *bufio.Writer
 	fields []Field
 }
 
@@ -65,8 +84,10 @@ func (l *FileLogger) With(f ...Field) Logger {
 
 func (l *FileLogger) printFile(msg string, fields ...Field) {
 	now := time.Now()
-	fmt.Fprintf(l.f, "%s - %s\n", now.Format("2006-01-02 15:04:05"), msg)
+	fmt.Fprintf(l.w, "%s - %s\n", now.Format("2006-01-02 15:04:05"), msg)
 	for _, fv := range fields {
-		fmt.Fprintf(l.f, "\t%s - %+v\n", fv.Key, fv.Value)
+		fmt.Fprintf(l.w, "\t%s - %+v\n", fv.Key, fv.Value)
 	}
+
+	_ = l.w.Flush()
 }

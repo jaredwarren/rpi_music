@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 const (
 	NewSongID = "new"
 )
@@ -11,6 +13,8 @@ type Song struct {
 	RFID      string
 	URL       string
 	FilePath  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func NewSong() *Song {

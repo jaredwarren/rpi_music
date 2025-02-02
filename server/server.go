@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -61,6 +62,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	// sub.Use(s.requireLoginMiddleware)
 
 	sub.HandleFunc("/log", s.Log)
+	sub.HandleFunc("/logs", s.Logs)
 	sub.HandleFunc("/stop", s.StopSongHandler)
 
 	// list songs
@@ -300,4 +302,18 @@ func (s *Server) Log(w http.ResponseWriter, r *http.Request) {
 	} else {
 		s.logger.Info("log", log.Any("message", msg))
 	}
+}
+
+func (s *Server) Logs(w http.ResponseWriter, r *http.Request) {
+	flog, ok := s.logger.(*log.FileLogger)
+	if !ok {
+		fmt.Fprintf(w, "cannot convert logger")
+		return
+	}
+	dat, err := os.ReadFile(flog.Path)
+	if err != nil {
+		fmt.Fprintln(w, err.Error())
+		return
+	}
+	fmt.Fprint(w, string(dat))
 }

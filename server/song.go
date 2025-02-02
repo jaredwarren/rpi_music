@@ -236,8 +236,7 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
-	var err error
-	err = r.ParseMultipartForm(32 << 20)
+	err := r.ParseMultipartForm(32 << 20)
 	if err != nil {
 		s.logger.Error(err.Error())
 		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
@@ -245,53 +244,51 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	s.logger.Info("NewSongHandler", log.Any("form", r.PostForm))
 
-	song, err := s.downloadSongHandler(r)
+	url := r.PostForm.Get("url")
+	force := r.PostForm.Get("force") != ""
+	rfid := r.PostForm.Get("rfid")
+
+	go s.newSong(url, rfid, force)
+
+	http.Redirect(w, r, "/songs", http.StatusFound)
+}
+
+func (s *Server) newSong(url, rfid string, force bool) {
+	song, err := s.downloadSong(url, force)
 	if err != nil {
 		s.logger.Error(err.Error())
-		s.httpError(w, err, http.StatusBadRequest)
 		return
 	}
 
 	// 2. Store
 	err = s.db.UpdateSong(song)
 	if err != nil {
-		s.httpError(w, fmt.Errorf("NewSongHandler|db.Update|%w", err), http.StatusInternalServerError)
+		s.logger.Error("NewSongHandler|db.Update|%w", log.Error(err))
 		return
 	}
 
 	// 3. Insert RFID if set
-	rfid := r.PostForm.Get("rfid")
 	rfid = strings.ReplaceAll(rfid, ":", "")
 	if rfid != "" {
 		// Make sure rfid doesn't exist yet.
 		rfidSong, err := s.db.GetRFIDSong(rfid)
 		if err != nil {
 			s.logger.Error("RFIDExists error", log.Error(err))
-			s.httpError(w, fmt.Errorf("RFIDExists error %w", err), http.StatusInternalServerError)
 			return
 		} else if rfidSong != nil {
-			s.httpError(w, fmt.Errorf("rfid aready assigned! (%+v)", rfidSong), http.StatusInternalServerError)
+			s.logger.Error("rfid aready assigned!", log.Error(err))
 			return
 		} // else continue
 
 		err = s.db.AddRFIDSong(rfid, song.ID)
 		if err != nil {
 			s.logger.Error("AddRFIDSong error", log.Error(err))
-			s.httpError(w, fmt.Errorf("AddRFIDSong error %w", err), http.StatusInternalServerError)
 			return
 		}
 	}
-
-	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 var urlreg = regexp.MustCompile(`.+?(https?:)`)
-
-func (s *Server) downloadSongHandler(r *http.Request) (*model.Song, error) {
-	url := r.PostForm.Get("url")
-	force := r.PostForm.Get("force") != ""
-	return s.downloadSong(url, force)
-}
 
 func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 	if url == "" {

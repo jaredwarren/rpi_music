@@ -3,6 +3,7 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jaredwarren/rpi_music/model"
 	bolt "go.etcd.io/bbolt"
@@ -105,6 +106,9 @@ func (s *SongDB) UpdateSong(song *model.Song) error {
 	if song.ID == "" {
 		return fmt.Errorf("song ID required")
 	}
+
+	song.UpdatedAt = time.Now()
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
 
