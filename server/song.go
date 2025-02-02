@@ -300,8 +300,9 @@ func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 	url = urlreg.ReplaceAllString(url, "${1}")
 
 	if !force {
+		s.logger.Info("getting file", log.Any("url", url))
 		// check if file exists
-		filename, err := downloader.GetVideoFilename(url)
+		filename, err := downloader.GetVideoFilename(url, s.logger)
 		if err != nil {
 			return nil, err
 		}
@@ -313,6 +314,7 @@ func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 	}
 
 	// 1. Download song
+	s.logger.Info("getting video", log.Any("url", url))
 	file, video, err := s.downloader.DownloadVideo(url, s.logger)
 	if err != nil {
 		s.logger.Error(err.Error())
@@ -320,6 +322,7 @@ func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 	}
 
 	// 2. Download Thumb
+	s.logger.Info("getting thumb", log.Any("url", url))
 	tmb, err := s.downloader.DownloadThumb(video)
 	if err != nil {
 		s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))

@@ -31,6 +31,8 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 	videoID = strings.Replace(videoID, "//music.", "//", 1)
 	fmt.Printf("~~~~~~~~~~~~~~~\n clean url:%+v\n\n", videoID)
 
+	logger.Info("DownloadVideo", log.Any("videoID", videoID))
+
 	var wg sync.WaitGroup
 
 	// g := new(errgroup.Group)
@@ -43,7 +45,7 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 		if err == nil {
 			resp.Title = info["title"].(string)
 		}
-		fmt.Printf("~~~~~~~~~~~~~~~\n getVideoInfo err::\n%+v\n\n", err)
+		logger.Error("getVideoInfo err", log.Any("err", err))
 		return err
 	}()
 
@@ -65,7 +67,7 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 		defer wg.Done()
 		var err error
 		filename, err = downloadVideo(videoID)
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err::\n%+v\n\n", err)
+		logger.Error("downloadVideo err", log.Any("err", err))
 		return err
 	}()
 
@@ -73,13 +75,14 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 
 	// validate that file exists
 	if filename == "" {
-		newestFile, _ := getNewestFile("song_files/")
+		newestFile, err := getNewestFile("song_files/")
 
-		fmt.Printf("~~~~~~~~~~~~~~~\n newestFile:%+v\n\n", newestFile)
+		logger.Error("getNewestFile err", log.Any("newestFile", newestFile), log.Any("err", err))
 
 		return "", nil, fmt.Errorf("could not get filename")
 	}
 	if _, err := os.Stat(filename); err != nil {
+		logger.Error("os.Stat", log.Any("filename", filename), log.Any("err", err))
 		return "", nil, err
 	}
 
@@ -127,7 +130,7 @@ func getVideoInfo(videoID string) (map[string]any, error) {
 	return out, nil
 }
 
-func GetVideoFilename(videoID string) (string, error) {
+func GetVideoFilename(videoID string, logger log.Logger) (string, error) {
 	// TODO: fix this command, figure out how to make it work with `yt-dlp`
 	args := []string{
 		"--ignore-errors",
@@ -143,7 +146,7 @@ func GetVideoFilename(videoID string) (string, error) {
 	cmd := exec.Command("yt-dlp", args...)
 	std, err := cmd.Output()
 
-	fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename out:\n%+v\n\n", string(std))
+	logger.Info("GetVideoFilename", log.Any("out", string(std)), log.Any("err", err))
 
 	// clean output
 	outStr := string(std)
