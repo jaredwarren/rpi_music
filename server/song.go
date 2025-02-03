@@ -209,7 +209,7 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 2. Store
-		err = s.db.UpdateSong(song)
+		err = s.db.CreateSong(song)
 		if err != nil {
 			logger.Error(err.Error())
 			return
@@ -344,56 +344,56 @@ func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
 	s.logger.Warn("UpdateSongHandler broken!!!")
 	return
-	vars := mux.Vars(r)
-	songID := vars["song_id"]
-	if songID == "" {
-		s.httpError(w, fmt.Errorf("no song_id"), http.StatusBadRequest)
-		return
-	}
-	song, err := s.db.GetSong(songID)
-	if err != nil {
-		s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
-	if song == nil {
-		s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
+	// vars := mux.Vars(r)
+	// songID := vars["song_id"]
+	// if songID == "" {
+	// 	s.httpError(w, fmt.Errorf("no song_id"), http.StatusBadRequest)
+	// 	return
+	// }
+	// song, err := s.db.GetSong(songID)
+	// if err != nil {
+	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
+	// 	return
+	// }
+	// if song == nil {
+	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
+	// 	return
+	// }
 
-	err = r.ParseForm()
-	if err != nil {
-		s.httpError(w, fmt.Errorf("UpdateSongHandler|ParseForm|%w", err), http.StatusBadRequest)
-		return
-	}
+	// err = r.ParseForm()
+	// if err != nil {
+	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|ParseForm|%w", err), http.StatusBadRequest)
+	// 	return
+	// }
 
-	url := r.PostForm.Get("url")
+	// url := r.PostForm.Get("url")
 
-	// try to download file again
-	file, video, err := s.downloader.DownloadVideo(url, s.logger)
-	if err != nil {
-		s.httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
-		return
-	}
-	tmb, err := s.downloader.DownloadThumb(video)
-	if err != nil {
-		s.logger.Warn("UpdateSongHandler|downloadThumb", log.Error(err))
-		// ignore err
-	}
+	// // try to download file again
+	// file, video, err := s.downloader.DownloadVideo(url, s.logger)
+	// if err != nil {
+	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
+	// 	return
+	// }
+	// tmb, err := s.downloader.DownloadThumb(video)
+	// if err != nil {
+	// 	s.logger.Warn("UpdateSongHandler|downloadThumb", log.Error(err))
+	// 	// ignore err
+	// }
 
-	song.Thumbnail = tmb
-	song.FilePath = file
-	song.Title = video.Title
+	// song.Thumbnail = tmb
+	// song.FilePath = file
+	// song.Title = video.Title
 
-	// delete old key if rfid id different then key
+	// // delete old key if rfid id different then key
 
-	// Update otherwise
-	err = s.db.UpdateSong(song)
-	if err != nil {
-		s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
-		return
-	}
+	// // Update otherwise
+	// err = s.db.UpdateSong(song)
+	// if err != nil {
+	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
+	// 	return
+	// }
 
-	http.Redirect(w, r, "/songs", http.StatusFound)
+	// http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {

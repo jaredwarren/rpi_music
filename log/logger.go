@@ -19,6 +19,10 @@ type Field struct {
 	Value any
 }
 
+type Closer interface {
+	Close()
+}
+
 type Logger interface {
 	Debug(string, ...Field)
 	Info(string, ...Field)

@@ -21,7 +21,7 @@ func (d *YoutubeDLDownloader) GetVideo(videoID string) (*youtube.Video, error) {
 	}, nil
 }
 
-func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error) {
+func (d *YoutubeDLDownloader) DownloadVideo(videoID string, _ log.Logger) (string, *youtube.Video, error) {
 	var filename string
 	resp := &youtube.Video{
 		ID: videoID,
@@ -29,8 +29,8 @@ func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (
 
 	// https://music.youtube.com/watch?v=4qwIhKfv_Dc&si=ST0cFoZIDwj5DKDI
 	videoID = strings.Replace(videoID, "//music.", "//", 1)
-	fmt.Printf("~~~~~~~~~~~~~~~\n clean url:%+v\n\n", videoID)
 
+	logger := log.Get()
 	logger.Info("DownloadVideo", log.Any("videoID", videoID))
 
 	var wg sync.WaitGroup
@@ -130,7 +130,7 @@ func getVideoInfo(videoID string) (map[string]any, error) {
 	return out, nil
 }
 
-func GetVideoFilename(videoID string, logger log.Logger) (string, error) {
+func GetVideoFilename(videoID string, _ log.Logger) (string, error) {
 	// TODO: fix this command, figure out how to make it work with `yt-dlp`
 	args := []string{
 		"--ignore-errors",
@@ -146,6 +146,7 @@ func GetVideoFilename(videoID string, logger log.Logger) (string, error) {
 	cmd := exec.Command("yt-dlp", args...)
 	std, err := cmd.Output()
 
+	logger := log.Get()
 	logger.Info("GetVideoFilename", log.Any("out", string(std)), log.Any("err", err))
 
 	// clean output

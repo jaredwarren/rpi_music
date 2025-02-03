@@ -147,6 +147,10 @@ func (r *RFIDReader) Start() {
 				err := player.Play(song)
 				if err != nil {
 					r.logger.Error("error playing song", log.Error(err))
+				} else {
+					song.Plays = song.Plays + 1
+					_ = r.db.UpdateSong(song)
+					// for now ignore err
 				}
 			} else {
 				r.logger.Info("song id not found", log.Any("id", rfid))

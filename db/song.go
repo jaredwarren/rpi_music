@@ -22,6 +22,7 @@ type DBer interface {
 	// V2
 	GetSong(rfid string) (*model.Song, error)
 	ListSongs() ([]*model.Song, error)
+	CreateSong(song *model.Song) error
 	UpdateSong(song *model.Song) error
 	DeleteSong(id string) error
 	SongExists(id string) (bool, error)
@@ -108,6 +109,24 @@ func (s *SongDB) UpdateSong(song *model.Song) error {
 	}
 
 	song.UpdatedAt = time.Now()
+
+	return s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(SongBucketV2))
+
+		buf, err := json.Marshal(song)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(song.ID), buf)
+	})
+}
+
+func (s *SongDB) CreateSong(song *model.Song) error {
+	if song.ID == "" {
+		return fmt.Errorf("song ID required")
+	}
+
+	song.CreatedAt = time.Now()
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))

@@ -33,11 +33,13 @@ func NewFileLogger(path string) (Logger, error) {
 	// Create a buffered writer
 	writer := bufio.NewWriter(f)
 
-	return &FileLogger{
+	globalLogger := &FileLogger{
 		Path: path,
 		f:    f,
 		w:    writer,
-	}, nil
+	}
+
+	return globalLogger, nil
 }
 
 type FileLogger struct {
@@ -48,8 +50,8 @@ type FileLogger struct {
 }
 
 func (l *FileLogger) Debug(msg string, f ...Field) {
-	msg = fmt.Sprintf("[DEBUG] %s", msg)
-	l.printFile(msg, f...)
+	// msg = fmt.Sprintf("[DEBUG] %s", msg)
+	// l.printFile(msg, f...)
 }
 func (l *FileLogger) Info(msg string, f ...Field) {
 	msg = fmt.Sprintf("[INFO] %s", msg)
@@ -80,6 +82,10 @@ func (l *FileLogger) SetLevel(Level) {}
 func (l *FileLogger) With(f ...Field) Logger {
 	l.fields = append(l.fields, f...)
 	return l
+}
+
+func (l *FileLogger) Close() {
+	defer l.f.Close()
 }
 
 func (l *FileLogger) printFile(msg string, fields ...Field) {

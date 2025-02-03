@@ -13,6 +13,7 @@ type Song struct {
 	RFID      string
 	URL       string
 	FilePath  string
+	Plays     int
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
