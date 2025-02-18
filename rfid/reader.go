@@ -125,35 +125,37 @@ func (r *RFIDReader) Start() {
 		for {
 			rfid := r.ReadID()
 
+			logger := log.Get()
+
 			rfidSong, err := r.db.GetRFIDSong(rfid)
 			if err != nil {
-				r.logger.Error("GetRFIDSong error", log.Error(err))
+				logger.Error("GetRFIDSong error", log.Error(err))
 				// TODO: play error
 				continue
 			}
 			if rfidSong == nil || len(rfidSong.Songs) == 0 {
-				r.logger.Error("no songs"+rfid, log.Error(err))
+				logger.Error("no songs"+rfid, log.Error(err))
 				// TODO: play error
 				continue
 			}
 
 			song, err := r.db.GetSong(rfidSong.Songs[0])
 			if err != nil {
-				r.logger.Error("error reading db", log.Error(err))
+				logger.Error("error reading db", log.Error(err))
 			}
 			if song != nil {
-				r.logger.Info("found song", log.Any("song", song))
+				logger.Info("found song", log.Any("song", song))
 				player.Beep()
 				err := player.Play(song)
 				if err != nil {
-					r.logger.Error("error playing song", log.Error(err))
+					logger.Error("error playing song", log.Error(err))
 				} else {
 					song.Plays = song.Plays + 1
 					_ = r.db.UpdateSong(song)
 					// for now ignore err
 				}
 			} else {
-				r.logger.Info("song id not found", log.Any("id", rfid))
+				logger.Info("song id not found", log.Any("id", rfid))
 			}
 
 			// cooldown
@@ -172,13 +174,14 @@ func (r *RFIDReader) ReadID() string {
 	go func() {
 		for {
 			// trying to read UID
+			logger := log.Get()
 			if r.IsReady {
 				data, err := r.RFID.ReadUID(5 * time.Second) // Note: timeout is IRQ timeout
 				if len(data) > 0 {
-					fmt.Printf("~~~~~~~~~~~~~~~\n rfid:%+v\n\n", hex.EncodeToString(data))
+					logger.Info("r.RFID.ReadUID:", log.Any("hex", hex.EncodeToString(data)))
 				}
 				if !isTimeoutError(err) {
-					fmt.Printf("~~~~~~~~~~~~~~~\n rfid:err:%+v\n\n", err)
+					logger.Error("r.RFID.ReadUID err:", log.Any("error", err))
 				}
 
 				// Prevent trying to write to closed channel

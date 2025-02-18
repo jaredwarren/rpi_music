@@ -106,6 +106,14 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	psub := sub.PathPrefix("/player").Subrouter()
 	psub.HandleFunc("/", s.PlayerHandler).Methods(http.MethodGet)
 
+	// Admin
+	asub := sub.PathPrefix("/admin").Subrouter()
+	asub.HandleFunc("", s.RawHandler).Methods(http.MethodGet)
+	asub.HandleFunc("/song/{song_id}", s.AdminEditSong).Methods(http.MethodGet)
+	asub.HandleFunc("/song/{song_id}", s.AdminInsertSong).Methods(http.MethodPost)
+	asub.HandleFunc("/song/{song_id}", s.AdminUpdateSong).Methods(http.MethodPatch)
+	asub.HandleFunc("/song/{song_id}", s.AdminDelete).Methods(http.MethodDelete)
+
 	// Static files
 	sub.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 	sub.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir(viper.GetString("player.song_root")))))

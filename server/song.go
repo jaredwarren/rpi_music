@@ -296,15 +296,16 @@ func (s *Server) newSong(url, rfid string, force bool) {
 var urlreg = regexp.MustCompile(`.+?(https?:)`)
 
 func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
+	logger := log.Get()
 	if url == "" {
 		return nil, fmt.Errorf("missing url")
 	}
 	url = urlreg.ReplaceAllString(url, "${1}")
 
 	if !force {
-		s.logger.Info("getting file", log.Any("url", url))
+		logger.Info("getting file", log.Any("url", url))
 		// check if file exists
-		filename, err := downloader.GetVideoFilename(url, s.logger)
+		filename, err := downloader.GetVideoFilename(url, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -316,18 +317,18 @@ func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 	}
 
 	// 1. Download song
-	s.logger.Info("getting video", log.Any("url", url))
-	file, video, err := s.downloader.DownloadVideo(url, s.logger)
+	logger.Info("getting video", log.Any("url", url))
+	file, video, err := s.downloader.DownloadVideo(url, logger)
 	if err != nil {
-		s.logger.Error(err.Error())
+		logger.Error(err.Error())
 		return nil, fmt.Errorf("DownloadVideo|%w", err)
 	}
 
 	// 2. Download Thumb
-	s.logger.Info("getting thumb", log.Any("url", url))
+	logger.Info("getting thumb", log.Any("url", url))
 	tmb, err := s.downloader.DownloadThumb(video)
 	if err != nil {
-		s.logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
+		logger.Warn("NewSongHandler|downloadThumb", log.Error(err))
 		// ignore err
 	}
 	song := &model.Song{

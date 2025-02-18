@@ -1,0 +1,73 @@
+{{template "base" .}}
+
+{{define "title"}}Song List{{end}}
+
+{{define "nav"}}
+<div class="container-fluid">
+    <ul class="nav nav-pills">
+        <li class="nav-item">
+            <a class="nav-link disabled" href="#"><span
+                    class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/rfids"><span class="material-symbols-outlined align-middle">nfc</span>
+                <span>Cards</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/logs"><span class="material-symbols-outlined align-middle">nfc</span>
+                <span>Logs</span></a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span>
+                <span class="align-middle"></span></a>
+        </li>
+    </ul>
+</div>
+{{end}}
+
+{{define "main"}}
+
+<div class="container">
+    <form action="/admin/song/{{.Song.ID}}" method="post">
+        <div class="form-group">
+            <label for="thumb">Thumb</label>
+            <input type="text" class="form-control" id="thumb"
+                name="thumb" value="{{.Song.Thumbnail}}">
+        </div>
+        <div class="form-group">
+            <label for="title">Title</label>
+            <input type="text" class="form-control" id="title"
+                name="title" value="{{.Song.Title}}">
+        </div>
+        <div class="form-group">
+            <label for="url">URL</label>
+            <input type="text" class="form-control" id="url"
+                name="url" value="{{.Song.URL}}">
+        </div>
+        <div class="form-group">
+            <label for="filepath">FilePath</label>
+            <input type="text" class="form-control" id="filepath"
+                name="filepath" value="{{.Song.FilePath}}">
+        </div>
+        <div class="form-group">
+            <label for="plays">Plays</label>
+            <input type="num" class="form-control" id="plays"
+                name="plays" value="{{.Song.Plays}}">
+        </div>
+        <div class="form-group">
+            <label for="created_at">CreatedAt</label>
+            <input type="datetime-local" class="form-control" id="created_at"
+                name="created_at" value="{{.Song.CreatedAt}}">
+        </div>
+        <div class="form-group">
+            <label for="updated_at">UpdatedAt</label>
+            <input type="datetime-local" class="form-control" id="updated_at"
+                name="updated_at" value="{{.Song.UpdatedAt}}">
+        </div>
+        <button type="submit">Update</button>
+    </form>
+</div>
+{{end}}
+
+{{define "player"}}
+{{end}}

@@ -16,3 +16,5 @@ downloader/song_files/*
 
 airpl*
 flight*
+
+logs.out

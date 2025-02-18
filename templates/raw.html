@@ -1,12 +1,12 @@
 {{template "base" .}}
 
-{{define "title"}}Song List{{end}}
+{{define "title"}}Raw Data{{end}}
 
 {{define "nav"}}
 <div class="container-fluid">
     <ul class="nav nav-pills">
         <li class="nav-item">
-            <a class="nav-link disabled" href="#"><span
+            <a class="nav-link" href="#"><span
                     class="material-symbols-outlined align-middle">library_music</span> <span>Songs</span></a>
         </li>
         <li class="nav-item">
@@ -24,16 +24,19 @@
         <thead>
             <tr>
                 <td>ID</td>
-                <td>Thumb</td>
+                <td>Thumbnail</td>
                 <td>Title</td>
                 <td>URL</td>
                 <td>FilePath</td>
+                <td>Plays</td>
+                <td>CreatedAt</td>
+                <td>UpdatedAt</td>
             </tr>
         </thead>
         <tbody>
             {{range $index, $s := .Songs}}
             <tr id="{{$s.ID}}">
-                <td>{{$s.ID}}</td>
+                <td><a href="/admin/song/{{$s.ID}}">{{$s.ID}}</a></td>
                 <td><img src="{{$s.Thumbnail}}" style="height: 50px;" alt="{{$s.Thumbnail}}"><br>{{$s.Thumbnail}}</td>
                 <td>{{$s.Title}}</td>
                 <td>
@@ -43,9 +46,9 @@
                         </span></a>
                 </td>
                 <td>{{$s.FilePath}}</td>
-                <!-- <td class="align-middle"><button onClick="wsplay(event, '{{$s.ID}}')" class="btn btn-outline-primary"
-                        href="/song/{{$s.ID}}/play"><span class="material-symbols-outlined align-middle">play_circle
-                        </span></button></td> -->
+                <td>{{$s.Plays}}</td>
+                <td>{{$s.CreatedAt}}</td>
+                <td>{{$s.UpdatedAt}}</td>
             </tr>
             {{end}}
         </tbody>

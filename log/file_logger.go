@@ -1,8 +1,8 @@
 package log
 
 import (
-	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"time"
 )
@@ -25,18 +25,22 @@ func NewFileLogger(path string) (Logger, error) {
 	_ = os.Remove(path)
 	// might not exist, so ignore error
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	// Open or create the log file
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
+	// defer file.Close()
+
+	// Set the log output to the file
+	log.SetOutput(f)
 
 	// Create a buffered writer
-	writer := bufio.NewWriter(f)
+	// writer := bufio.NewWriter(f)
 
-	globalLogger := &FileLogger{
+	globalLogger = &FileLogger{
 		Path: path,
 		f:    f,
-		w:    writer,
 	}
 
 	return globalLogger, nil
@@ -45,7 +49,6 @@ func NewFileLogger(path string) (Logger, error) {
 type FileLogger struct {
 	Path   string
 	f      *os.File
-	w      *bufio.Writer
 	fields []Field
 }
 
@@ -90,10 +93,10 @@ func (l *FileLogger) Close() {
 
 func (l *FileLogger) printFile(msg string, fields ...Field) {
 	now := time.Now()
-	fmt.Fprintf(l.w, "%s - %s\n", now.Format("2006-01-02 15:04:05"), msg)
-	for _, fv := range fields {
-		fmt.Fprintf(l.w, "\t%s - %+v\n", fv.Key, fv.Value)
-	}
 
-	_ = l.w.Flush()
+	log.Printf("%s - %s\n", now.Format("2006-01-02 15:04:05"), msg)
+
+	for _, fv := range fields {
+		log.Printf("\t%s - %+v\n", fv.Key, fv.Value)
+	}
 }
