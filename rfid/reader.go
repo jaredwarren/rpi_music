@@ -180,7 +180,7 @@ func (r *RFIDReader) ReadID() string {
 				if len(data) > 0 {
 					logger.Info("r.RFID.ReadUID:", log.Any("hex", hex.EncodeToString(data)))
 				}
-				if !isTimeoutError(err) {
+				if !isTimeoutError(err) && err.Error() != "" {
 					logger.Error("r.RFID.ReadUID err:", log.Any("error", err))
 				}
 
