@@ -5,11 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -20,7 +17,6 @@ import (
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
-	"github.com/spf13/viper"
 )
 
 // JSONHandler
@@ -109,7 +105,7 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Song":      song,
 		TemplateTag: s.GetToken(w, r),
 	}
@@ -153,7 +149,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 		return songs[i].CreatedAt.Before(songs[j].CreatedAt)
 	})
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Songs":       songs,
 		"CurrentSong": song,
 		"Player":      cp,
@@ -171,7 +167,7 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Song":      model.NewSong(),
 		TemplateTag: s.GetToken(w, r),
 	}
@@ -342,61 +338,6 @@ func (s *Server) downloadSong(url string, force bool) (*model.Song, error) {
 	return song, nil
 }
 
-func (s *Server) UpdateSongHandler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Warn("UpdateSongHandler broken!!!")
-	return
-	// vars := mux.Vars(r)
-	// songID := vars["song_id"]
-	// if songID == "" {
-	// 	s.httpError(w, fmt.Errorf("no song_id"), http.StatusBadRequest)
-	// 	return
-	// }
-	// song, err := s.db.GetSong(songID)
-	// if err != nil {
-	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
-	// 	return
-	// }
-	// if song == nil {
-	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|GetSong|%w", err), http.StatusBadRequest)
-	// 	return
-	// }
-
-	// err = r.ParseForm()
-	// if err != nil {
-	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|ParseForm|%w", err), http.StatusBadRequest)
-	// 	return
-	// }
-
-	// url := r.PostForm.Get("url")
-
-	// // try to download file again
-	// file, video, err := s.downloader.DownloadVideo(url, s.logger)
-	// if err != nil {
-	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|downloadVideo|%w", err), http.StatusInternalServerError)
-	// 	return
-	// }
-	// tmb, err := s.downloader.DownloadThumb(video)
-	// if err != nil {
-	// 	s.logger.Warn("UpdateSongHandler|downloadThumb", log.Error(err))
-	// 	// ignore err
-	// }
-
-	// song.Thumbnail = tmb
-	// song.FilePath = file
-	// song.Title = video.Title
-
-	// // delete old key if rfid id different then key
-
-	// // Update otherwise
-	// err = s.db.UpdateSong(song)
-	// if err != nil {
-	// 	s.httpError(w, fmt.Errorf("UpdateSongHandler|db.Update|%w", err), http.StatusInternalServerError)
-	// 	return
-	// }
-
-	// http.Redirect(w, r, "/songs", http.StatusFound)
-}
-
 func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	songID := vars["song_id"]
@@ -432,7 +373,7 @@ func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Song":      song,
 		TemplateTag: s.GetToken(w, r),
 	}
@@ -443,42 +384,4 @@ func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tpl := template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles(files...))
 	s.render(w, r, tpl, fullData)
-}
-
-func downloadThumbFile(URL string) (string, error) {
-	//Get the response bytes from the url
-	response, err := http.Get(URL)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != 200 {
-		return "", errors.New("Received non 200 response code")
-	}
-	//Create a empty file
-	fileUrl, err := url.Parse(URL)
-	if err != nil {
-		return "", err
-	}
-	segments := strings.Split(fileUrl.Path, "/")
-	fileName := segments[len(segments)-1]
-	if fileName == "" {
-		fileName = uuid.New().String()
-	}
-	fileName = filepath.Join(viper.GetString("player.thumb_root"), fileName)
-
-	file, err := os.Create(fileName)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	//Write the bytes to the fiel
-	_, err = io.Copy(file, response.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return fileName, nil
 }

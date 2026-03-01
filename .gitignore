@@ -11,6 +11,7 @@ pplayer
 notes.md
 stuff/
 *.ipynb
+*coverage.out
 
 downloader/song_files/*
 

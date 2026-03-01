@@ -13,10 +13,8 @@ var (
 func downloadVideo(videoID string) (string, error) {
 	std, err := downloadVideoCmd.Exec(videoID)
 	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err:\n%+v\n\n", err)
 		return "", err
 	}
-	fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo out:\n%+v\n\n", std)
 
 	// Try to match filename from raw output, because GetVideoFilename is currently broken
 	// [Merger] Merging formats into "song_files/The_Bare_Necessities_from_The_Jungle_Book-08NlhjpVFsU.mp4"

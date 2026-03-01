@@ -34,8 +34,6 @@ var (
 func downloadVideoThumb(videoID string) (string, error) {
 	outStr, err := downloadVideoThumbCmd.Exec(videoID)
 	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideoThumb err:\n%+v\n\n", err)
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideoThumb out:\n%+v\n\n", outStr)
 		return "", err
 	}
 

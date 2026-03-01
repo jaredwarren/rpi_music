@@ -86,8 +86,6 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongHandler).Methods(http.MethodPost)
 
 	// Play
-	// ssub.HandleFunc("/{song_id}", s.EditSongFormHandler).Methods(http.MethodGet)
-	// ssub.HandleFunc("/{song_id}", s.UpdateSongHandler).Methods(http.MethodPut, http.MethodPost)
 	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
 	ssub.HandleFunc("/{song_id}/play", s.PlaySongHandler).Methods(http.MethodGet)
 	ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
