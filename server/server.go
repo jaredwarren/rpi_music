@@ -213,7 +213,7 @@ func New(db db.DBer, l log.Logger) *Server {
 }
 
 // Render a template, or server error.
-func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Template, data interface{}) {
+func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Template, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	buf := new(bytes.Buffer)
 	if err := tpl.Execute(buf, data); err != nil {
@@ -239,7 +239,7 @@ func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 	cp := player.GetPlayer()
 	song := player.GetPlaying()
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Player":    cp,
 		"Song":      song,
 		TemplateTag: s.GetToken(w, r),

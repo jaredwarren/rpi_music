@@ -22,7 +22,7 @@ func (s *Server) AdminEditSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Song": song,
 	}
 
@@ -145,7 +145,7 @@ func (s *Server) AdminHome(w http.ResponseWriter, r *http.Request) {
 		return songs[i].CreatedAt.Before(songs[j].CreatedAt)
 	})
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Songs":     songs,
 		TemplateTag: s.GetToken(w, r),
 	}

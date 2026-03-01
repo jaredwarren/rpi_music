@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -10,11 +11,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
 	"github.com/spf13/viper"
 )
+
+const httpClientTimeout = 60 * time.Second
 
 type Downloader interface {
 	GetVideo(videoID string) (*youtube.Video, error)
@@ -38,13 +42,13 @@ func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (st
 		return "", video, err
 	}
 
-	formats := video.Formats.WithAudioChannels() // only get videos with audio
-
-	// I think this sorts best > worst
+	formats := video.Formats.WithAudioChannels()
+	if len(formats) == 0 {
+		return "", video, fmt.Errorf("no audio formats found for video %s", videoID)
+	}
 	sort.Slice(formats, func(i, j int) bool {
 		return formats[i].AverageBitrate > formats[j].AverageBitrate
 	})
-
 	bestFormat := formats[0]
 	ext := getExt(bestFormat.MimeType)
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
@@ -52,7 +56,7 @@ func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (st
 
 	logger.Info("downloading video", log.Any("title", video.Title), log.Any("file", fileName))
 
-	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(fileName); err != nil && errors.Is(err, os.ErrNotExist) {
 		stream, _, err := client.GetStream(video, &bestFormat)
 		if err != nil {
 			logger.Error("GetStream error", log.Any("title", video.Title), log.Error(err), log.Any("format", bestFormat))
@@ -118,28 +122,27 @@ func (d *YoutubeDownloader) DownloadThumb(video *youtube.Video) (string, error) 
 }
 
 func downloadFile(URL, fileName string) error {
-	//Get the response bytes from the url
-	response, err := http.Get(URL)
+	ctx, cancel := context.WithTimeout(context.Background(), httpClientTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, URL, nil)
+	if err != nil {
+		return err
+	}
+	client := &http.Client{Timeout: httpClientTimeout}
+	response, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != 200 {
-		return errors.New("Received non 200 response code")
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d", response.StatusCode)
 	}
-	//Create a empty file
 	file, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-
-	//Write the bytes to the fiel
 	_, err = io.Copy(file, response.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

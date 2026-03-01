@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+// DefaultYtDlpBinary is the name of the yt-dlp executable used by YoutubeDLDownloader.
+const DefaultYtDlpBinary = "yt-dlp"
+
+// NewDLCommand builds a command from a single string (space-separated).
+// Arguments containing spaces are not supported; use NewDLCommandFromArgs for those.
 func NewDLCommand(in string) *DLCommand {
 	c := &DLCommand{
 		FullCommand: in,
@@ -14,10 +19,22 @@ func NewDLCommand(in string) *DLCommand {
 	return c
 }
 
+// NewDLCommandFromArgs builds a command from a binary name and a slice of arguments.
+// Use this when arguments may contain spaces or when building args programmatically.
+func NewDLCommandFromArgs(binary string, args []string) *DLCommand {
+	argsCopy := make([]string, len(args))
+	copy(argsCopy, args)
+	return &DLCommand{
+		BaseCommand: binary,
+		Args:        argsCopy,
+		parsed:      true,
+	}
+}
+
 type DLCommand struct {
-	FullCommand string // full command as it appears in command line
-	BaseCommand string // main executable
-	Args        []string
+	FullCommand string   // full command as it appears in command line (for NewDLCommand)
+	BaseCommand string   // executable name
+	Args        []string // arguments (including -o paths)
 	WorkingDir  string
 	parsed      bool
 }
@@ -41,11 +58,26 @@ func (d *DLCommand) Exec(exArgs ...string) (string, error) {
 	return string(std), err
 }
 
+// ExecCombined runs the command and returns combined stdout and stderr.
+// Use when the subprocess writes progress or paths to stderr (e.g. yt-dlp merge message).
+func (d *DLCommand) ExecCombined(exArgs ...string) ([]byte, error) {
+	if !d.parsed {
+		d.parse()
+	}
+	c, args := d.GetCommand()
+	args = append(args, exArgs...)
+	cmd := exec.Command(c, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("cmd err:%w", err)
+	}
+	return out, nil
+}
+
 func (d *DLCommand) ExecB(exArgs ...string) ([]byte, error) {
 	if !d.parsed {
 		d.parse()
 	}
-
 	c, args := d.GetCommand()
 	args = append(args, exArgs...)
 	cmd := exec.Command(c, args...)

@@ -15,7 +15,7 @@ func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 
 	song := model.NewSong()
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Song":      song,
 		TemplateTag: s.GetToken(w, r),
 	}

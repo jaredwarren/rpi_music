@@ -2,29 +2,28 @@ package downloader
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 )
 
-var (
-	downloadVideoCmd = NewDLCommand("yt-dlp --no-call-home --no-cache-dir --restrict-filenames --audio-quality 0 -o song_files/%(title)s-%(id)s.%(ext)s")
-	matchRegex       = regexp.MustCompile(`\[Merger\] Merging formats into "song_files/(.+?)"`)
-)
+// mergerOutputRegex captures the output path from yt-dlp's "[Merger] Merging formats into \"path\"" line (stderr).
+var mergerOutputRegex = regexp.MustCompile(`\[Merger\] Merging formats into "(.+?)"`)
 
 func downloadVideo(videoID string) (string, error) {
-	std, err := downloadVideoCmd.Exec(videoID)
+	dir := getSongRoot()
+	cmd := NewDLCommandFromArgs(DefaultYtDlpBinary, []string{
+		"--no-call-home", "--no-cache-dir", "--restrict-filenames",
+		"--audio-quality", "0",
+		"-o", filepath.Join(dir, "%(title)s-%(id)s.%(ext)s"),
+	})
+	out, err := cmd.ExecCombined(videoID)
 	if err != nil {
 		return "", err
 	}
 
-	// Try to match filename from raw output, because GetVideoFilename is currently broken
-	// [Merger] Merging formats into "song_files/The_Bare_Necessities_from_The_Jungle_Book-08NlhjpVFsU.mp4"
-	matches := matchRegex.FindStringSubmatch(std)
-	if len(matches) > 1 {
-		filename := matches[1]
-		if filename != "" {
-			return "song_files/" + filename, nil
-		}
+	matches := mergerOutputRegex.FindStringSubmatch(string(out))
+	if len(matches) > 1 && matches[1] != "" {
+		return matches[1], nil
 	}
-
-	return "", fmt.Errorf("couldn't find file")
+	return "", fmt.Errorf("could not parse output path from yt-dlp")
 }

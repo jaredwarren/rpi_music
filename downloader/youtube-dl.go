@@ -3,9 +3,8 @@ package downloader
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -13,145 +12,120 @@ import (
 	"github.com/kkdai/youtube/v2"
 )
 
+// YoutubeDLDownloader downloads audio and thumbnails using the yt-dlp CLI.
 type YoutubeDLDownloader struct{}
 
 func (d *YoutubeDLDownloader) GetVideo(videoID string) (*youtube.Video, error) {
-	return &youtube.Video{
-		ID: videoID,
-	}, nil
+	return &youtube.Video{ID: videoID}, nil
 }
 
 func (d *YoutubeDLDownloader) DownloadVideo(videoID string, _ log.Logger) (string, *youtube.Video, error) {
-	var filename string
-	resp := &youtube.Video{
-		ID: videoID,
-	}
-
-	// https://music.youtube.com/watch?v=4qwIhKfv_Dc&si=ST0cFoZIDwj5DKDI
-	videoID = strings.Replace(videoID, "//music.", "//", 1)
-
+	videoID = normalizeVideoID(videoID)
 	logger := log.Get()
 	logger.Info("DownloadVideo", log.Any("videoID", videoID))
 
+	video := &youtube.Video{ID: videoID}
+	var filename string
 	var wg sync.WaitGroup
 
-	// g := new(errgroup.Group)
-
-	// get title
+	// Fetch title and download audio in parallel.
 	wg.Add(1)
-	go func() error {
+	go func() {
 		defer wg.Done()
-		info, err := getVideoInfo(videoID)
-		if err == nil {
-			resp.Title = info["title"].(string)
+		if info, err := getVideoInfo(videoID); err == nil {
+			if t, ok := info["title"].(string); ok {
+				video.Title = t
+			}
+		} else {
+			logger.Error("getVideoInfo", log.Error(err))
 		}
-		logger.Error("getVideoInfo err", log.Any("err", err))
-		return err
 	}()
 
-	// TODO: see if I can download both video and tumb
-
-	// // get filename
-	// wg.Add(1)
-	// go func() error {
-	// 	defer wg.Done()
-	// 	var err error
-	// 	filename, err = GetVideoFilename(videoID)
-	// 	fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename err:\n%+v\n\n", err)
-	// 	return err
-	// }()
-
-	// download video
 	wg.Add(1)
-	go func() error {
+	go func() {
 		defer wg.Done()
 		var err error
 		filename, err = downloadVideo(videoID)
-		logger.Error("downloadVideo err", log.Any("err", err))
-		return err
+		if err != nil {
+			logger.Error("downloadVideo", log.Error(err))
+		}
 	}()
 
 	wg.Wait()
 
-	// validate that file exists
 	if filename == "" {
-		newestFile, err := getNewestFile("song_files/")
-
-		logger.Error("getNewestFile err", log.Any("newestFile", newestFile), log.Any("err", err))
-
+		if latest, err := getNewestFile(getSongRoot()); err == nil {
+			logger.Info("getNewestFile fallback", log.Any("file", latest))
+		}
 		return "", nil, fmt.Errorf("could not get filename")
 	}
 	if _, err := os.Stat(filename); err != nil {
-		logger.Error("os.Stat", log.Any("filename", filename), log.Any("err", err))
+		logger.Error("os.Stat", log.Any("filename", filename), log.Error(err))
 		return "", nil, err
 	}
 
-	return filename, resp, nil
+	return filename, video, nil
+}
+
+// normalizeVideoID rewrites music.youtube URLs to the standard youtube domain.
+func normalizeVideoID(videoID string) string {
+	return strings.Replace(videoID, "//music.", "//", 1)
+}
+
+var getVideoInfoArgs = []string{
+	"--ignore-errors", "--no-call-home", "--no-cache-dir",
+	"--skip-download", "--restrict-filenames", "-J",
+}
+
+func getVideoInfo(videoID string) (map[string]any, error) {
+	cmd := NewDLCommandFromArgs(DefaultYtDlpBinary, getVideoInfoArgs)
+	out, err := cmd.ExecB(videoID)
+	if err != nil {
+		return nil, fmt.Errorf("getVideoInfo: %w", err)
+	}
+	var info map[string]any
+	if err := json.Unmarshal(out, &info); err != nil {
+		return nil, fmt.Errorf("getVideoInfo json: %w", err)
+	}
+	return info, nil
 }
 
 func getNewestFile(dir string) (string, error) {
-	files, _ := ioutil.ReadDir(dir)
-	var newestFile string
-	var newestTime int64 = 0
-	for _, f := range files {
-		fi, err := os.Stat(dir + f.Name())
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	var newestName string
+	var newestTime int64
+	for _, e := range entries {
+		info, err := e.Info()
 		if err != nil {
-			return "", fmt.Errorf("[getNewestFile] os.Stat")
+			continue
 		}
-		currTime := fi.ModTime().Unix()
-		if currTime > newestTime {
-			newestTime = currTime
-			newestFile = f.Name()
+		if t := info.ModTime().Unix(); t > newestTime {
+			newestTime = t
+			newestName = info.Name()
 		}
 	}
-	if newestFile == "" {
-		return "", fmt.Errorf("[getNewestFile] no file")
+	if newestName == "" {
+		return "", fmt.Errorf("no files in %s", dir)
 	}
-	return newestFile, nil
+	return filepath.Join(dir, newestName), nil
 }
 
-var (
-	getVideoInfoCmd = NewDLCommand("yt-dlp --ignore-errors --no-call-home --no-cache-dir --skip-download --restrict-filenames -J")
-)
-
-func getVideoInfo(videoID string) (map[string]any, error) {
-	std, err := getVideoInfoCmd.ExecB(videoID)
-	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo err:\n%+v\n\n", err)
-		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo out:\n%+v\n\n", std)
-		return nil, fmt.Errorf("cmd err:%w", err)
-	}
-	out := map[string]any{}
-	err = json.Unmarshal(std, &out)
-	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo out:\n%+v\n\n", std)
-		return nil, fmt.Errorf("json err:%w", err)
-	}
-	return out, nil
-}
-
+// GetVideoFilename returns the path where yt-dlp would save the audio for the given video.
+// It runs yt-dlp with --get-filename and no actual download.
 func GetVideoFilename(videoID string, _ log.Logger) (string, error) {
-	// TODO: fix this command, figure out how to make it work with `yt-dlp`
-	args := []string{
-		"--ignore-errors",
-		"--no-call-home",
-		"--no-cache-dir",
-		"--skip-download",
-		"--restrict-filenames",
-		"-f", "bestaudio",
-		"--get-filename",
-		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
+	dir := getSongRoot()
+	cmd := NewDLCommandFromArgs(DefaultYtDlpBinary, []string{
+		"--ignore-errors", "--no-call-home", "--no-cache-dir",
+		"--skip-download", "--restrict-filenames",
+		"-f", "bestaudio", "--get-filename",
+		"-o", filepath.Join(dir, "%(title)s-%(id)s.%(ext)s"),
+	})
+	out, err := cmd.ExecB(videoID)
+	if err != nil {
+		return "", fmt.Errorf("GetVideoFilename: %w", err)
 	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
-
-	logger := log.Get()
-	logger.Info("GetVideoFilename", log.Any("out", string(std)), log.Any("err", err))
-
-	// clean output
-	outStr := string(std)
-	outStr = strings.Trim(outStr, `"`)
-	outStr = strings.TrimSpace(outStr)
-	return outStr, err
+	return strings.TrimSpace(strings.Trim(string(out), `"`)), nil
 }

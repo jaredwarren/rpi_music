@@ -19,7 +19,7 @@ const (
 var store = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
 
 func (s *Server) LoginForm(w http.ResponseWriter, r *http.Request) {
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 	s.logger.Debug("login form", log.Any("data", fullData))

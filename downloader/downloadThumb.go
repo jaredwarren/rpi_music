@@ -3,48 +3,43 @@ package downloader
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/kkdai/youtube/v2"
 )
 
+// thumbOutputRegex captures the path from yt-dlp's "Writing ... to: path" line.
+var thumbOutputRegex = regexp.MustCompile(`Writing .+? to: (.+?)(\n|$)`)
+
 func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error) {
-	// download video
 	filename, err := downloadVideoThumb(video.ID)
 	if err != nil {
-		return "", fmt.Errorf("download video thumb error: %w", err)
+		return "", fmt.Errorf("download thumb: %w", err)
 	}
-
-	// validate that file exists
 	if filename == "" {
 		return "", fmt.Errorf("could not get thumb filename")
 	}
 	if _, err := os.Stat(filename); err != nil {
-		return "", fmt.Errorf("os.stat error: %w", err)
+		return "", fmt.Errorf("thumb file stat: %w", err)
 	}
-
 	return filename, nil
 }
 
-var (
-	downloadVideoThumbCmd = NewDLCommand("yt-dlp --write-thumbnail --ignore-errors --no-call-home --no-cache-dir --restrict-filenames --skip-download -o thumb_files/%(title)s-%(id)s")
-	thumbRegex            = regexp.MustCompile(`Writing .+? to: (.+?)(\n|$)`)
-)
-
 func downloadVideoThumb(videoID string) (string, error) {
-	outStr, err := downloadVideoThumbCmd.Exec(videoID)
+	dir := getThumbRoot()
+	cmd := NewDLCommandFromArgs(DefaultYtDlpBinary, []string{
+		"--write-thumbnail", "--ignore-errors", "--no-call-home", "--no-cache-dir",
+		"--restrict-filenames", "--skip-download",
+		"-o", filepath.Join(dir, "%(title)s-%(id)s"),
+	})
+	out, err := cmd.Exec(videoID)
 	if err != nil {
 		return "", err
 	}
-
-	// parse output because I can't find a better way to get thumb name
-	result := thumbRegex.FindStringSubmatch(outStr)
-	if len(result) > 1 {
-		filename := result[1]
-		if filename != "" {
-			return filename, nil
-		}
+	matches := thumbOutputRegex.FindStringSubmatch(out)
+	if len(matches) > 1 && matches[1] != "" {
+		return matches[1], nil
 	}
-
-	return "", fmt.Errorf("couldn't find thumb file")
+	return "", fmt.Errorf("could not parse thumb path from yt-dlp output")
 }

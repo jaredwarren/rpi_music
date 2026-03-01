@@ -44,7 +44,7 @@ func (s *Server) PrintHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Song":      song,
 		TemplateTag: s.GetToken(w, r),
 	}

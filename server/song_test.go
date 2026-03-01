@@ -125,7 +125,7 @@ func TestJSONGetSongByRFID(t *testing.T) {
 			wantBody: func(t *testing.T, body []byte) {
 				var out map[string]string
 				require.NoError(t, json.Unmarshal(body, &out))
-				assert.Equal(t, "rfid has now song", out["error"])
+				assert.Equal(t, "rfid has no song", out["error"])
 			},
 		},
 		{

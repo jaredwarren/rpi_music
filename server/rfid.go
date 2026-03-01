@@ -31,7 +31,7 @@ func (s *Server) EditRFIDSongFormHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Rfids":     rfidMap,
 		TemplateTag: s.GetToken(w, r),
 	}
@@ -67,7 +67,7 @@ func (s *Server) UnassignRFIDSongHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	resp := map[string]interface{}{
+	resp := map[string]any{
 		"ok": true,
 	}
 	json.NewEncoder(w).Encode(resp)
@@ -91,7 +91,7 @@ func (s *Server) AssignRFIDToSongFormHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Song":      song,
 		TemplateTag: s.GetToken(w, r),
 	}

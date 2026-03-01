@@ -52,7 +52,7 @@ func (s *Server) RawHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fullData := map[string]interface{}{
+	fullData := map[string]any{
 		"Songs":      songs,
 		"SongFiles":  sFiles,
 		"RFIDSongs":  rss,
