@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -9,14 +10,13 @@ import (
 // mergerOutputRegex captures the output path from yt-dlp's "[Merger] Merging formats into \"path\"" line (stderr).
 var mergerOutputRegex = regexp.MustCompile(`\[Merger\] Merging formats into "(.+?)"`)
 
-func downloadVideo(videoID string) (string, error) {
-	dir := getSongRoot()
-	cmd := NewDLCommandFromArgs(DefaultYtDlpBinary, []string{
+func downloadVideo(ctx context.Context, videoID, songRoot, binary string) (string, error) {
+	cmd := NewDLCommandFromArgs(binary, []string{
 		"--no-call-home", "--no-cache-dir", "--restrict-filenames",
 		"--audio-quality", "0",
-		"-o", filepath.Join(dir, "%(title)s-%(id)s.%(ext)s"),
+		"-o", filepath.Join(songRoot, "%(title)s-%(id)s.%(ext)s"),
 	})
-	out, err := cmd.ExecCombined(videoID)
+	out, err := cmd.ExecCombinedContext(ctx, videoID)
 	if err != nil {
 		return "", err
 	}

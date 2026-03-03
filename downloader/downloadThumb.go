@@ -13,7 +13,10 @@ import (
 var thumbOutputRegex = regexp.MustCompile(`Writing .+? to: (.+?)(\n|$)`)
 
 func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error) {
-	filename, err := downloadVideoThumb(video.ID)
+	thumbRoot := d.config().thumbRoot()
+	binary := d.config().binary()
+
+	filename, err := downloadVideoThumb(video.ID, thumbRoot, binary)
 	if err != nil {
 		return "", fmt.Errorf("download thumb: %w", err)
 	}
@@ -26,12 +29,11 @@ func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error
 	return filename, nil
 }
 
-func downloadVideoThumb(videoID string) (string, error) {
-	dir := getThumbRoot()
-	cmd := NewDLCommandFromArgs(DefaultYtDlpBinary, []string{
+func downloadVideoThumb(videoID, thumbRoot, binary string) (string, error) {
+	cmd := NewDLCommandFromArgs(binary, []string{
 		"--write-thumbnail", "--ignore-errors", "--no-call-home", "--no-cache-dir",
 		"--restrict-filenames", "--skip-download",
-		"-o", filepath.Join(dir, "%(title)s-%(id)s"),
+		"-o", filepath.Join(thumbRoot, "%(title)s-%(id)s"),
 	})
 	out, err := cmd.Exec(videoID)
 	if err != nil {

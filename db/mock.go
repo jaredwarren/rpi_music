@@ -17,11 +17,11 @@ type MockDB struct {
 	ListRFIDSongsErr    error
 	DeleteSongErr       error
 
-	CreateSongCalls   []*model.Song
-	UpdateSongCalls   []*model.Song
-	AddRFIDSongCalls  []AddRFIDSongCall
-	OnCreateSong      func(*model.Song)
-	OnUpdateSong      func(*model.Song)
+	CreateSongCalls  []*model.Song
+	UpdateSongCalls  []*model.Song
+	AddRFIDSongCalls []AddRFIDSongCall
+	OnCreateSong     func(*model.Song)
+	OnUpdateSong     func(*model.Song)
 }
 
 // AddRFIDSongCall records arguments passed to AddRFIDSong.
@@ -30,10 +30,9 @@ type AddRFIDSongCall struct {
 	SongID string
 }
 
-func (m *MockDB) Close() error                                            { return nil }
-func (m *MockDB) OldListSongs() ([]*model.Song, error)                     { return nil, nil }
-func (m *MockDB) GetSong(id string) (*model.Song, error)                  { return m.GetSongResult, m.GetSongErr }
-func (m *MockDB) ListSongs() ([]*model.Song, error)                      { return m.ListSongsResult, m.ListSongsErr }
+func (m *MockDB) Close() error                           { return nil }
+func (m *MockDB) GetSong(id string) (*model.Song, error) { return m.GetSongResult, m.GetSongErr }
+func (m *MockDB) ListSongs() ([]*model.Song, error)      { return m.ListSongsResult, m.ListSongsErr }
 func (m *MockDB) CreateSong(song *model.Song) error {
 	m.CreateSongCalls = append(m.CreateSongCalls, song)
 	if m.OnCreateSong != nil {
@@ -48,16 +47,20 @@ func (m *MockDB) UpdateSong(song *model.Song) error {
 	}
 	return nil
 }
-func (m *MockDB) DeleteSong(id string) error                              { return m.DeleteSongErr }
-func (m *MockDB) SongExists(id string) (bool, error)                      { return false, nil }
-func (m *MockDB) GetRFIDSong(rfid string) (*model.RFIDSong, error)       { return m.GetRFIDSongResult, m.GetRFIDSongErr }
-func (m *MockDB) GetSongRFID(songID string) (*model.RFIDSong, error)     { return nil, nil }
+func (m *MockDB) DeleteSong(id string) error         { return m.DeleteSongErr }
+func (m *MockDB) SongExists(id string) (bool, error) { return false, nil }
+func (m *MockDB) GetRFIDSong(rfid string) (*model.RFIDSong, error) {
+	return m.GetRFIDSongResult, m.GetRFIDSongErr
+}
+func (m *MockDB) GetSongRFID(songID string) (*model.RFIDSong, error) { return nil, nil }
 func (m *MockDB) AddRFIDSong(rfid, songID string) error {
 	m.AddRFIDSongCalls = append(m.AddRFIDSongCalls, AddRFIDSongCall{RFID: rfid, SongID: songID})
 	return nil
 }
-func (m *MockDB) RemoveRFIDSong(rfid, songID string) error                 { return nil }
-func (m *MockDB) DeleteRFID(id string) error                              { return nil }
-func (m *MockDB) ListRFIDSongs() ([]*model.RFIDSong, error)              { return m.ListRFIDSongsResult, m.ListRFIDSongsErr }
-func (m *MockDB) RFIDExists(rfid string) (bool, error)                    { return false, nil }
-func (m *MockDB) DeleteSongFromRFID(songID string) error                  { return nil }
+func (m *MockDB) RemoveRFIDSong(rfid, songID string) error { return nil }
+func (m *MockDB) DeleteRFID(id string) error               { return nil }
+func (m *MockDB) ListRFIDSongs() ([]*model.RFIDSong, error) {
+	return m.ListRFIDSongsResult, m.ListRFIDSongsErr
+}
+func (m *MockDB) RFIDExists(rfid string) (bool, error)   { return false, nil }
+func (m *MockDB) DeleteSongFromRFID(songID string) error { return nil }

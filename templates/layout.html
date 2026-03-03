@@ -21,6 +21,17 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/public/favicon-16x16.png">
     <link rel="manifest" href="/public/site.webmanifest">
     <style>
+        :root {
+            --bs-btn-disabled-opacity: 1;
+            --bs-nav-link-disabled-opacity: 1;
+        }
+        .btn.disabled,
+        .btn:disabled {
+            opacity: 1;
+        }
+        .nav-link.disabled {
+            opacity: 1;
+        }
         .material-symbols-outlined {
             font-variation-settings:
                 'FILL' 0,

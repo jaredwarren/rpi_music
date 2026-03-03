@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
@@ -52,21 +54,25 @@ func (s *Server) JSONGetSongByRFID(w http.ResponseWriter, r *http.Request) {
 
 	rfidSong, err := s.db.GetRFIDSong(rfid)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeJSONError(w, "rfid has no song")
+			return
+		}
 		writeJSONError(w, err.Error())
 		return
 	}
-	if rfidSong == nil || len(rfidSong.Songs) == 0 {
+	if len(rfidSong.Songs) == 0 {
 		writeJSONError(w, "rfid has no song")
 		return
 	}
 
 	song, err := s.db.GetSong(rfidSong.Songs[0])
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeJSONError(w, "song not found")
+			return
+		}
 		writeJSONError(w, err.Error())
-		return
-	}
-	if song == nil {
-		writeJSONError(w, "song not found")
 		return
 	}
 
@@ -83,11 +89,11 @@ func (s *Server) JSONHandler(w http.ResponseWriter, r *http.Request) {
 
 	song, err := s.db.GetSong(songID)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			writeJSONError(w, "song not found")
+			return
+		}
 		writeJSONError(w, err.Error())
-		return
-	}
-	if song == nil {
-		writeJSONError(w, "song not found")
 		return
 	}
 
@@ -179,7 +185,7 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	rfid := normalizeRFID(r.PostForm.Get("rfid"))
 
 	go func() {
-		song, err := s.downloadSong(url, force)
+		song, err := s.downloadSong(context.Background(), url, force)
 		if err != nil {
 			logger.Error(err.Error())
 			return
@@ -212,7 +218,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 
 // createAndStoreSong downloads a song, stores it via UpdateSong, and optionally assigns an RFID.
 func (s *Server) createAndStoreSong(url, rfid string, force bool) {
-	song, err := s.downloadSong(url, force)
+	song, err := s.downloadSong(context.Background(), url, force)
 	if err != nil {
 		s.logger.Error(err.Error())
 		return
@@ -236,7 +242,7 @@ func (s *Server) tryAssignRFID(rfid, songID string, logger log.Logger) {
 		return
 	}
 	existing, err := s.db.GetRFIDSong(rfid)
-	if err != nil {
+	if err != nil && !errors.Is(err, db.ErrNotFound) {
 		logger.Error("tryAssignRFID|GetRFIDSong", log.Error(err))
 		return
 	}
@@ -249,20 +255,20 @@ func (s *Server) tryAssignRFID(rfid, songID string, logger log.Logger) {
 	}
 }
 
-func (s *Server) downloadSong(rawURL string, force bool) (*model.Song, error) {
+func (s *Server) downloadSong(ctx context.Context, rawURL string, force bool) (*model.Song, error) {
 	logger := log.Get()
 	if rawURL == "" {
-		return nil, fmt.Errorf("missing url")
+		return nil, downloader.ErrMissingURL
 	}
 	url := normalizeVideoURL(rawURL)
 
 	if !force {
-		if err := s.checkAlreadyDownloaded(url, logger); err != nil {
+		if err := s.checkAlreadyDownloaded(ctx, url, logger); err != nil {
 			return nil, err
 		}
 	}
 
-	filePath, video, err := s.downloader.DownloadVideo(url, logger)
+	filePath, video, err := s.downloader.DownloadVideo(ctx, url, logger)
 	if err != nil {
 		logger.Error(err.Error())
 		return nil, fmt.Errorf("DownloadVideo|%w", err)
@@ -285,15 +291,19 @@ func normalizeVideoURL(url string) string {
 }
 
 // checkAlreadyDownloaded returns an error if the video for url is already on disk.
-func (s *Server) checkAlreadyDownloaded(url string, logger log.Logger) error {
+// Returns downloader.ErrAlreadyExists when the file exists; callers can use errors.Is to check.
+func (s *Server) checkAlreadyDownloaded(ctx context.Context, url string, logger log.Logger) error {
 	logger.Info("getting file", log.Any("url", url))
-	filename, err := downloader.GetVideoFilename(url, logger)
+	filename, err := s.downloader.GetVideoFilename(ctx, url, logger)
 	if err != nil {
 		return err
 	}
+	if filename == "" {
+		return nil // no pre-check available (e.g. YoutubeDownloader)
+	}
 	_, err = os.Stat(filename)
 	if err == nil {
-		return fmt.Errorf("file already downloaded")
+		return downloader.ErrAlreadyExists
 	}
 	if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -311,11 +321,11 @@ func (s *Server) getSongFromVars(w http.ResponseWriter, r *http.Request, param s
 	}
 	song, err := s.db.GetSong(key)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
+			return nil, false
+		}
 		s.httpError(w, fmt.Errorf("GetSong|%w", err), http.StatusBadRequest)
-		return nil, false
-	}
-	if song == nil {
-		s.httpError(w, fmt.Errorf("song not found"), http.StatusBadRequest)
 		return nil, false
 	}
 	return song, true

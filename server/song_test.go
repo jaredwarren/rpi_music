@@ -46,7 +46,7 @@ func TestJSONHandler(t *testing.T) {
 		{
 			name:   "song not found",
 			songID: "nonexistent",
-			db:     &db.MockDB{GetSongResult: nil, GetSongErr: nil},
+			db:     &db.MockDB{GetSongResult: nil, GetSongErr: db.ErrNotFound},
 			wantBody: func(t *testing.T, body []byte) {
 				var out map[string]string
 				require.NoError(t, json.Unmarshal(body, &out))
@@ -407,10 +407,10 @@ func TestDownloadSong(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := &db.MockDB{}
-			// GetRFIDSong returns nil so RFID assign path can run when rfid is set
+			// GetRFIDSong returns not found so RFID assign path can run when rfid is set
 			if tt.form != nil && tt.form["rfid"] != "" {
 				mockDB.GetRFIDSongResult = nil
-				mockDB.GetRFIDSongErr = nil
+				mockDB.GetRFIDSongErr = db.ErrNotFound
 			}
 			var createDone chan struct{}
 			if tt.waitCreate {

@@ -1,8 +1,10 @@
 package downloader
 
 import (
-	"os"
+	"context"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kkdai/youtube/v2"
@@ -21,24 +23,30 @@ func skipIfNoYtDlp(t *testing.T) {
 func TestDownloadThumb(t *testing.T) {
 	skipIfNoYtDlp(t)
 
-	v := YoutubeDLDownloader{}
+	thumbDir := t.TempDir()
+	v := NewYoutubeDLDownloader(&YoutubeDLConfig{ThumbRoot: thumbDir})
 	thumb, err := v.DownloadThumb(&youtube.Video{
 		ID: "https://youtu.be/ZJocdnMvTYs",
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "thumb_files/Could_Have_Been_Me-ZJocdnMvTYs.webp", thumb)
-	_ = os.RemoveAll("./thumb_files")
+	require.True(t, strings.HasPrefix(thumb, thumbDir), "thumb path should be under temp dir")
+	require.Contains(t, thumb, "Could_Have_Been_Me")
+	require.Contains(t, thumb, ".webp")
 }
 
 func TestDownloadVideo(t *testing.T) {
 	skipIfNoYtDlp(t)
 
-	v := YoutubeDLDownloader{}
-	f, vv, err := v.DownloadVideo("https://youtu.be/ZJocdnMvTYs", nil)
+	songDir := t.TempDir()
+	v := NewYoutubeDLDownloader(&YoutubeDLConfig{SongRoot: songDir})
+	ctx := context.Background()
+
+	f, vv, err := v.DownloadVideo(ctx, "https://youtu.be/ZJocdnMvTYs", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, vv, "DownloadVideo returned nil video without error")
-	require.Equal(t, "song_files/Could_Have_Been_Me-ZJocdnMvTYs.webm", f)
+	require.True(t, strings.HasPrefix(f, songDir), "path should be under temp dir")
+	require.Contains(t, filepath.Base(f), "Could_Have_Been_Me")
 	require.Equal(t, "Could Have Been Me", vv.Title)
 }

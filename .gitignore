@@ -19,3 +19,5 @@ airpl*
 flight*
 
 logs.out
+
+.cursor/

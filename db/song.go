@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,20 +15,22 @@ const (
 	SongBucketV2 = "SongBucketV2"
 )
 
-type DBer interface {
-	// Open(path string, mode fs.FileMode, options *bolt.Options)
-	Close() error
-	OldListSongs() ([]*model.Song, error) // Still need for migrate
+// ErrNotFound is returned when a song or resource is not found in the database.
+var ErrNotFound = errors.New("db: not found")
 
-	// V2
-	GetSong(rfid string) (*model.Song, error)
+// DBer defines the database operations for songs and RFID mappings.
+type DBer interface {
+	Close() error
+
+	// Songs
+	GetSong(songID string) (*model.Song, error)
 	ListSongs() ([]*model.Song, error)
 	CreateSong(song *model.Song) error
 	UpdateSong(song *model.Song) error
 	DeleteSong(id string) error
 	SongExists(id string) (bool, error)
 
-	// RFID stuff
+	// RFID
 	GetRFIDSong(rfid string) (*model.RFIDSong, error)
 	GetSongRFID(songID string) (*model.RFIDSong, error)
 	AddRFIDSong(rfid, songID string) error
@@ -38,30 +41,37 @@ type DBer interface {
 	DeleteSongFromRFID(songID string) error
 }
 
+// SongDB is a BoltDB-backed implementation of DBer.
 type SongDB struct {
 	db *bolt.DB
 }
 
-func (s *SongDB) Close() error {
-	return s.db.Close()
-}
+// NewSongDB opens the database at path and ensures required buckets exist.
+func NewSongDB(path string) (DBer, error) {
+	db, err := bolt.Open(path, 0o600, nil)
+	if err != nil {
+		return nil, fmt.Errorf("open db: %w", err)
+	}
 
-func (s *SongDB) OldListSongs() ([]*model.Song, error) {
-	songs := []*model.Song{}
-	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucket))
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var song *model.Song
-			err := json.Unmarshal(v, &song)
-			if err != nil {
-				return err
+	err = db.Update(func(tx *bolt.Tx) error {
+		for _, name := range []string{SongBucket, SongBucketV2, RFIDBucket} {
+			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
+				return fmt.Errorf("create bucket %q: %w", name, err)
 			}
-			songs = append(songs, song)
 		}
 		return nil
 	})
-	return songs, err
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
+	return &SongDB{db: db}, nil
+}
+
+// Close closes the database connection.
+func (s *SongDB) Close() error {
+	return s.db.Close()
 }
 
 func (s *SongDB) GetSong(songID string) (*model.Song, error) {
@@ -70,49 +80,43 @@ func (s *SongDB) GetSong(songID string) (*model.Song, error) {
 		b := tx.Bucket([]byte(SongBucketV2))
 		v := b.Get([]byte(songID))
 		if v == nil {
-			// TODO: return err not found
-			return nil
+			return ErrNotFound
 		}
-		err := json.Unmarshal(v, &song)
-		if err != nil {
-			return err
-		}
-		return nil
+		song = &model.Song{}
+		return json.Unmarshal(v, song)
 	})
-	if song == nil {
-		// TODO: return err not found
+	if err != nil {
+		return nil, err
 	}
-	return song, err
+	return song, nil
 }
 
 func (s *SongDB) ListSongs() ([]*model.Song, error) {
-	songs := []*model.Song{}
+	var songs []*model.Song
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var song *model.Song
-			err := json.Unmarshal(v, &song)
-			if err != nil {
+		return b.ForEach(func(k, v []byte) error {
+			var song model.Song
+			if err := json.Unmarshal(v, &song); err != nil {
 				return err
 			}
-			songs = append(songs, song)
-		}
-		return nil
+			songs = append(songs, &song)
+			return nil
+		})
 	})
 	return songs, err
 }
 
-func (s *SongDB) UpdateSong(song *model.Song) error {
+func (s *SongDB) CreateSong(song *model.Song) error {
 	if song.ID == "" {
 		return fmt.Errorf("song ID required")
 	}
-
-	song.UpdatedAt = time.Now()
+	now := time.Now()
+	song.CreatedAt = now
+	song.UpdatedAt = now
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
-
 		buf, err := json.Marshal(song)
 		if err != nil {
 			return err
@@ -121,16 +125,14 @@ func (s *SongDB) UpdateSong(song *model.Song) error {
 	})
 }
 
-func (s *SongDB) CreateSong(song *model.Song) error {
+func (s *SongDB) UpdateSong(song *model.Song) error {
 	if song.ID == "" {
 		return fmt.Errorf("song ID required")
 	}
-
-	song.CreatedAt = time.Now()
+	song.UpdatedAt = time.Now()
 
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
-
 		buf, err := json.Marshal(song)
 		if err != nil {
 			return err
@@ -140,58 +142,19 @@ func (s *SongDB) CreateSong(song *model.Song) error {
 }
 
 func (s *SongDB) DeleteSong(songID string) error {
-	err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(SongBucketV2))
-		return b.Delete([]byte(songID))
-	})
-	if err != nil {
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket([]byte(SongBucketV2)).Delete([]byte(songID))
+	}); err != nil {
 		return err
 	}
 	return s.DeleteSongFromRFID(songID)
 }
 
-//
-//
-//
-
-func NewSongDB(path string) (DBer, error) {
-	db, err := bolt.Open(path, 0600, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	err = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte(SongBucket))
-		if err != nil {
-			return fmt.Errorf("create bucke(%s)t: %s", SongBucket, err)
-		}
-
-		_, err = tx.CreateBucketIfNotExists([]byte(SongBucketV2))
-		if err != nil {
-			return fmt.Errorf("create bucke(%s)t: %s", SongBucketV2, err)
-		}
-
-		_, err = tx.CreateBucketIfNotExists([]byte(RFIDBucket))
-		if err != nil {
-			return fmt.Errorf("create bucke(%s)t: %s", RFIDBucket, err)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &SongDB{
-		db: db,
-	}, nil
-}
-
 func (s *SongDB) SongExists(id string) (bool, error) {
-	exists := false
+	var exists bool
 	err := s.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(SongBucketV2))
-		v := b.Get([]byte(id))
-		exists = v != nil
+		exists = b.Get([]byte(id)) != nil
 		return nil
 	})
 	return exists, err

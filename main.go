@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/jaredwarren/rpi_music/config"
@@ -22,14 +23,15 @@ const (
 )
 
 func main() {
-	logger, err := log.NewFileLogger("logs.out")
-	if err != nil {
-		panic(err.Error())
-	}
+	// logger, err := log.NewFileLogger("logs.out")
+	logger := log.NewStdLogger(log.Info)
+
+	logger.Info("Starting RPi Music")
 
 	// Init Config
 	config.InitConfig(logger)
 	logger.SetLevel(log.Level(viper.GetInt64("log.level")))
+	logger.Info("Config initialized")
 
 	// override things that don't work on mac
 	if runtime.GOOS == "darwin" {
@@ -63,13 +65,6 @@ func main() {
 	}
 	defer sdb.Close()
 
-	// Migrate DB
-	logger.Debug("Migrage DB")
-	db.Up(sdb)
-	if err != nil {
-		logger.Panic("error opening db", log.Error(err))
-	}
-
 	// Init RFID
 	if viper.GetBool("rfid-enabled") {
 		logger.Debug("Init RFID")
@@ -99,10 +94,12 @@ func main() {
 
 	logger.Info("Ready...")
 
-	// Shutdown
+	// Shutdown on SIGINT (Ctrl+C) or SIGTERM (kill, systemd, Docker)
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
-	<-sigChan
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	sig := <-sigChan
+	logger.Info("main :shutting down", log.Any("signal", sig.String()))
 
-	logger.Info("main :shutting down")
+	// Stop capturing signals so a second Ctrl+C uses default behavior (force exit)
+	signal.Reset(os.Interrupt, syscall.SIGTERM)
 }

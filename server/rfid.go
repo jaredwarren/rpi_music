@@ -2,12 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 )
@@ -83,10 +85,10 @@ func (s *Server) AssignRFIDToSongFormHandler(w http.ResponseWriter, r *http.Requ
 
 	song, err := s.db.GetSong(key)
 	if err != nil {
-		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
-	if song == nil {
+		if errors.Is(err, db.ErrNotFound) {
+			s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
+			return
+		}
 		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return
 	}
@@ -120,10 +122,10 @@ func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request)
 
 	song, err := s.db.GetSong(key)
 	if err != nil {
-		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
-	if song == nil {
+		if errors.Is(err, db.ErrNotFound) {
+			s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
+			return
+		}
 		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return
 	}
@@ -138,14 +140,15 @@ func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request)
 
 	// Make sure rfid doesn't exist yet.
 	rfidSong, err := s.db.GetRFIDSong(rfid)
-	if err != nil {
+	if err != nil && !errors.Is(err, db.ErrNotFound) {
 		s.logger.Error("RFIDExists error", log.Error(err))
 		s.httpError(w, fmt.Errorf("RFIDExists error %w", err), http.StatusInternalServerError)
 		return
-	} else if rfidSong != nil {
-		s.httpError(w, fmt.Errorf("rfid aready assigned! (%+v)", rfidSong), http.StatusInternalServerError)
+	}
+	if rfidSong != nil {
+		s.httpError(w, fmt.Errorf("rfid already assigned! (%+v)", rfidSong), http.StatusConflict)
 		return
-	} // else continue
+	}
 
 	err = s.db.AddRFIDSong(rfid, song.ID)
 	if err != nil {

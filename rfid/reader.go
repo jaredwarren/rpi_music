@@ -2,6 +2,7 @@ package rfid
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -129,13 +130,12 @@ func (r *RFIDReader) Start() {
 
 			rfidSong, err := r.db.GetRFIDSong(rfid)
 			if err != nil {
-				logger.Error("GetRFIDSong error", log.Error(err))
-				// TODO: play error
+				if !errors.Is(err, db.ErrNotFound) {
+					logger.Error("GetRFIDSong error", log.Error(err))
+				}
 				continue
 			}
-			if rfidSong == nil || len(rfidSong.Songs) == 0 {
-				logger.Error("no songs"+rfid, log.Error(err))
-				// TODO: play error
+			if len(rfidSong.Songs) == 0 {
 				continue
 			}
 

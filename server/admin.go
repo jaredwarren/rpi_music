@@ -1,12 +1,14 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"sort"
 
 	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/log"
 )
 
@@ -18,6 +20,10 @@ func (s *Server) AdminEditSong(w http.ResponseWriter, r *http.Request) {
 	songID := vars["song_id"]
 	song, err := s.db.GetSong(songID)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
+			return
+		}
 		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
 		return
 	}
@@ -54,11 +60,12 @@ func (s *Server) AdminInsertSong(w http.ResponseWriter, r *http.Request) {
 		// Update song
 		song, err := s.db.GetSong(songID)
 		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
+				return
+			}
 			s.httpError(w, fmt.Errorf("AdminInsertSong|db.View|%w", err), http.StatusInternalServerError)
 			return
-		}
-		if song == nil {
-			logger.Error("no song", log.Any("id", songID))
 		}
 
 		// update song

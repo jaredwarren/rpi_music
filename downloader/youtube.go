@@ -20,10 +20,12 @@ import (
 
 const httpClientTimeout = 60 * time.Second
 
+// Downloader is the interface for downloading YouTube audio and thumbnails.
 type Downloader interface {
 	GetVideo(videoID string) (*youtube.Video, error)
-	DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error)
+	DownloadVideo(ctx context.Context, videoID string, logger log.Logger) (string, *youtube.Video, error)
 	DownloadThumb(video *youtube.Video) (string, error)
+	GetVideoFilename(ctx context.Context, videoID string, logger log.Logger) (string, error)
 }
 
 type YoutubeDownloader struct{}
@@ -35,7 +37,7 @@ func (d *YoutubeDownloader) GetVideo(videoID string) (*youtube.Video, error) {
 	return client.GetVideo(videoID)
 }
 
-func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error) {
+func (d *YoutubeDownloader) DownloadVideo(ctx context.Context, videoID string, logger log.Logger) (string, *youtube.Video, error) {
 	client := youtube.Client{}
 	video, err := client.GetVideo(videoID)
 	if err != nil {
@@ -44,7 +46,7 @@ func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (st
 
 	formats := video.Formats.WithAudioChannels()
 	if len(formats) == 0 {
-		return "", video, fmt.Errorf("no audio formats found for video %s", videoID)
+		return "", video, ErrNoAudioFormats
 	}
 	sort.Slice(formats, func(i, j int) bool {
 		return formats[i].AverageBitrate > formats[j].AverageBitrate
@@ -79,6 +81,11 @@ func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (st
 		logger.Warn("file already exists", log.Any("title", video.Title), log.Any("file", fileName))
 	}
 	return fileName, video, nil
+}
+
+func (d *YoutubeDownloader) GetVideoFilename(ctx context.Context, _ string, _ log.Logger) (string, error) {
+	// Path is determined at download time from video title; no pre-check available.
+	return "", nil
 }
 
 func getExt(mimeType string) string {

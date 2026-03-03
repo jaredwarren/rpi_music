@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -53,20 +54,19 @@ func (d *DLCommand) parse() {
 	d.parsed = true
 }
 
-func (d *DLCommand) Exec(exArgs ...string) (string, error) {
-	std, err := d.ExecB(exArgs...)
-	return string(std), err
-}
-
 // ExecCombined runs the command and returns combined stdout and stderr.
 // Use when the subprocess writes progress or paths to stderr (e.g. yt-dlp merge message).
 func (d *DLCommand) ExecCombined(exArgs ...string) ([]byte, error) {
+	return d.ExecCombinedContext(context.Background(), exArgs...)
+}
+
+func (d *DLCommand) ExecCombinedContext(ctx context.Context, exArgs ...string) ([]byte, error) {
 	if !d.parsed {
 		d.parse()
 	}
 	c, args := d.GetCommand()
 	args = append(args, exArgs...)
-	cmd := exec.Command(c, args...)
+	cmd := exec.CommandContext(ctx, c, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("cmd err:%w", err)
@@ -74,13 +74,22 @@ func (d *DLCommand) ExecCombined(exArgs ...string) ([]byte, error) {
 	return out, nil
 }
 
+func (d *DLCommand) Exec(exArgs ...string) (string, error) {
+	std, err := d.ExecB(exArgs...)
+	return string(std), err
+}
+
 func (d *DLCommand) ExecB(exArgs ...string) ([]byte, error) {
+	return d.ExecBContext(context.Background(), exArgs...)
+}
+
+func (d *DLCommand) ExecBContext(ctx context.Context, exArgs ...string) ([]byte, error) {
 	if !d.parsed {
 		d.parse()
 	}
 	c, args := d.GetCommand()
 	args = append(args, exArgs...)
-	cmd := exec.Command(c, args...)
+	cmd := exec.CommandContext(ctx, c, args...)
 	std, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("cmd err:%w", err)

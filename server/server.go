@@ -16,7 +16,6 @@ import (
 	"github.com/jaredwarren/rpi_music/downloader"
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
-	"github.com/jaredwarren/rpi_music/player"
 	"github.com/spf13/viper"
 )
 
@@ -199,7 +198,15 @@ func New(db db.DBer, l log.Logger) *Server {
 		dl = &downloader.YoutubeDownloader{}
 		l.Info("using 'ytdl' downloader")
 	} else {
-		dl = &downloader.YoutubeDLDownloader{}
+		cfg := &downloader.YoutubeDLConfig{
+			SongRoot:  viper.GetString("player.song_root"),
+			ThumbRoot: viper.GetString("player.thumb_root"),
+		}
+		ytdl := downloader.NewYoutubeDLDownloader(cfg)
+		if err := ytdl.EnsureAvailable(); err != nil {
+			l.Info("yt-dlp not in PATH; downloads will fail until installed", log.Error(err))
+		}
+		dl = ytdl
 		l.Info("using 'youtube-dl' downloader")
 	}
 
@@ -207,7 +214,7 @@ func New(db db.DBer, l log.Logger) *Server {
 
 	return &Server{
 		db:         db,
-		logger:     l, // TODO: move this to context
+		logger:     l,
 		downloader: dl,
 	}
 }
@@ -233,53 +240,6 @@ func (s *Server) push(w http.ResponseWriter, resource string) {
 		}
 		return
 	}
-}
-
-func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
-	cp := player.GetPlayer()
-	song := player.GetPlaying()
-
-	fullData := map[string]any{
-		"Player":    cp,
-		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
-	}
-	files := []string{
-		"templates/player.html",
-		"templates/layout.html",
-	}
-	tpl := template.Must(template.New("base").ParseFiles(files...))
-	s.render(w, r, tpl, fullData)
-}
-
-func (s *Server) PlaySongHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	songID := vars["song_id"]
-	song, err := s.db.GetSong(songID)
-	if err != nil {
-		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
-		return
-	}
-
-	if song.FilePath == "" {
-		player.Error()
-		return
-	}
-
-	player.Beep()
-	err = player.Play(song)
-	if err != nil {
-		// TODO: check if err is user error or system error
-		s.httpError(w, fmt.Errorf("PlaySongHandler|player.Play|%w", err), http.StatusInternalServerError)
-		return
-	}
-
-	http.Redirect(w, r, "/songs", http.StatusFound)
-}
-
-func (s *Server) StopSongHandler(w http.ResponseWriter, r *http.Request) {
-	player.Stop()
-	http.Redirect(w, r, "/songs", http.StatusFound)
 }
 
 type Message struct {
