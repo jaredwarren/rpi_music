@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
@@ -92,9 +90,12 @@ func Play(song *model.Song) error {
 		_ = cmd.Wait()
 		cp.mu.Lock()
 		defer cp.mu.Unlock()
-		cp.cmd = nil
-		cp.Playing = false
-		cp.currentSong = nil
+		// Only clear if this process is still the active one (not replaced by a later Play).
+		if cp.cmd == cmd {
+			cp.cmd = nil
+			cp.Playing = false
+			cp.currentSong = nil
+		}
 	}()
 
 	return nil
@@ -150,22 +151,4 @@ func buildFFPlayArgs(filePath string) []string {
 	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
 	args = append(args, filePath)
 	return args
-}
-
-// runCmd is for debugging: runs a shell-like command and returns combined output.
-// The command is started then killed after 200ms. Not safe for production use.
-func runCmd(cmds string) ([]byte, error) {
-	parts := strings.Split(cmds, " ")
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("command too short: %s", cmds)
-	}
-	cmd := exec.Command(parts[0], parts[1:]...)
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	time.Sleep(200 * time.Millisecond)
-	if cmd.Process != nil {
-		_ = cmd.Process.Kill()
-	}
-	return cmd.CombinedOutput()
 }

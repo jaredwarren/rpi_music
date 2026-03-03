@@ -12,6 +12,10 @@ player:
     volume: "100"
 restart: false
 rfid-enabled: true
+rfid:
+  cooldown: 2s
+  poll_interval: 100ms
+  read_uid_timeout: 5s
 startup:
     file: sounds/windows-xp-startup.mp3
     play: true

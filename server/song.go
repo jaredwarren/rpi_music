@@ -8,7 +8,9 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -168,6 +170,7 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // DownloadSong starts a background download and immediately redirects to /songs.
+// When the download finishes, a native desktop notification is shown.
 // Form: url (required), force (optional), rfid (optional).
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	logger := log.NewStdLogger(log.Info)
@@ -181,6 +184,10 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	logger.Info("[DownloadSong] form", log.Any("form", r.PostForm))
 
 	url := r.PostForm.Get("url")
+	if url == "" {
+		s.httpError(w, downloader.ErrMissingURL, http.StatusBadRequest)
+		return
+	}
 	force := r.PostForm.Get("force") != ""
 	rfid := normalizeRFID(r.PostForm.Get("rfid"))
 
@@ -188,13 +195,19 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 		song, err := s.downloadSong(context.Background(), url, force)
 		if err != nil {
 			logger.Error(err.Error())
+			notifyDesktop("Download failed", err.Error())
+			s.notifyBroadcast("Download failed", err.Error())
 			return
 		}
 		if err := s.db.CreateSong(song); err != nil {
 			logger.Error(err.Error())
+			notifyDesktop("Download failed", err.Error())
+			s.notifyBroadcast("Download failed", err.Error())
 			return
 		}
 		s.tryAssignRFID(rfid, song.ID, logger)
+		notifyDesktop("Download complete", song.Title)
+		s.notifyBroadcast("Download complete", song.Title)
 	}()
 
 	http.Redirect(w, r, "/songs", http.StatusFound)
@@ -233,6 +246,28 @@ func (s *Server) createAndStoreSong(url, rfid string, force bool) {
 // normalizeRFID removes colons from an RFID string (e.g. "AB:CD:EF" -> "ABCDEF").
 func normalizeRFID(rfid string) string {
 	return strings.ReplaceAll(rfid, ":", "")
+}
+
+// notifyDesktop shows a native desktop notification (Linux: notify-send, macOS: osascript).
+// It is best-effort; if the command is not available (e.g. headless), it no-ops.
+func notifyDesktop(title, body string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("notify-send", title, body)
+	case "darwin":
+		// AppleScript: display notification "body" with title "title" (escape quotes in values)
+		bodyEsc := strings.ReplaceAll(strings.ReplaceAll(body, `\`, `\\`), `"`, `\"`)
+		titleEsc := strings.ReplaceAll(strings.ReplaceAll(title, `\`, `\\`), `"`, `\"`)
+		script := fmt.Sprintf("display notification \"%s\" with title \"%s\"", bodyEsc, titleEsc)
+		cmd = exec.Command("osascript", "-e", script)
+	default:
+		return
+	}
+	if err := cmd.Run(); err != nil {
+		// Best-effort; e.g. no display or notify-send not installed
+		_ = err
+	}
 }
 
 // tryAssignRFID assigns the given RFID to the song if rfid is non-empty and not already assigned.

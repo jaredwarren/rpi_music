@@ -102,6 +102,25 @@
             })
             return true;
         }
+
+        // SSE + Web Notifications: when a download completes, show a native notification on this device (e.g. Chrome on Android).
+        (function () {
+            if (!("Notification" in window)) return;
+            var es = new EventSource("/events");
+            es.addEventListener("notification", function (e) {
+                try {
+                    var d = JSON.parse(e.data);
+                    if (Notification.permission === "granted") {
+                        new Notification(d.title, { body: d.body });
+                    } else if (Notification.permission === "default") {
+                        Notification.requestPermission().then(function (p) {
+                            if (p === "granted") new Notification(d.title, { body: d.body });
+                        });
+                    }
+                } catch (err) { console.warn("notification parse error", err); }
+            });
+            if (Notification.permission === "default") Notification.requestPermission();
+        })();
     </script>
     <header>
     </header>

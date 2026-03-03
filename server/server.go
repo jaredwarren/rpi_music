@@ -19,6 +19,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+// notifyEvent is sent to browser clients over SSE for Web Notifications (e.g. Chrome on Android).
+type notifyEvent struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+}
+
 // Config provides basic configuration
 type Config struct {
 	Host         string
@@ -79,6 +85,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongFormHandler).Methods(http.MethodGet) // GET /song/new
 	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)    // POST /song/new
 	sub.HandleFunc("/download", s.DownloadSong).Methods(http.MethodPost)                               // Raw download
+	sub.HandleFunc("/events", s.EventsSSE).Methods(http.MethodGet)                                     // SSE for browser notifications
 
 	// Assign rfid to song
 	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongFormHandler).Methods(http.MethodGet)
@@ -187,9 +194,11 @@ func (htmlServer *HTMLServer) StopHTTPServer() error {
 }
 
 type Server struct {
-	db         db.DBer
-	logger     log.Logger
-	downloader downloader.Downloader
+	db            db.DBer
+	logger        log.Logger
+	downloader    downloader.Downloader
+	notifySubsMu  sync.Mutex
+	notifySubs    map[chan notifyEvent]struct{}
 }
 
 func New(db db.DBer, l log.Logger) *Server {
@@ -216,7 +225,69 @@ func New(db db.DBer, l log.Logger) *Server {
 		db:         db,
 		logger:     l,
 		downloader: dl,
+		notifySubs: make(map[chan notifyEvent]struct{}),
 	}
+}
+
+// notifyBroadcast sends a notification to all connected SSE clients (e.g. Chrome on Android).
+func (s *Server) notifyBroadcast(title, body string) {
+	ev := notifyEvent{Title: title, Body: body}
+	s.notifySubsMu.Lock()
+	defer s.notifySubsMu.Unlock()
+	for ch := range s.notifySubs {
+		select {
+		case ch <- ev:
+		default:
+			// client slow; skip
+		}
+	}
+}
+
+// EventsSSE streams server-sent events so the browser can show Web Notifications when downloads complete.
+func (s *Server) EventsSSE(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	ch := make(chan notifyEvent, 8)
+	s.notifySubsMu.Lock()
+	s.notifySubs[ch] = struct{}{}
+	s.notifySubsMu.Unlock()
+	go func() {
+		<-r.Context().Done()
+		s.notifySubsMu.Lock()
+		delete(s.notifySubs, ch)
+		s.notifySubsMu.Unlock()
+		close(ch)
+	}()
+	defer func() {
+		s.notifySubsMu.Lock()
+		delete(s.notifySubs, ch)
+		s.notifySubsMu.Unlock()
+	}()
+
+	enc := json.NewEncoder(&streamWriter{w: w})
+	for ev := range ch {
+		fmt.Fprint(w, "event: notification\ndata: ")
+		_ = enc.Encode(ev)
+		fmt.Fprint(w, "\n")
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	}
+}
+
+// streamWriter wraps http.ResponseWriter so json.Encoder writes to the response.
+type streamWriter struct {
+	w http.ResponseWriter
+}
+
+func (s streamWriter) Write(p []byte) (n int, err error) {
+	return s.w.Write(p)
 }
 
 // Render a template, or server error.

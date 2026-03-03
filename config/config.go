@@ -70,4 +70,9 @@ func SetDefaults() {
 	viper.Set("allow_override", true)
 
 	viper.Set("downloader", "youtube-dl")
+
+	// RFID timing (durations: "2s", "100ms", etc.)
+	viper.Set("rfid.cooldown", "2s")           // pause after handling a tag (or after GetSong error)
+	viper.Set("rfid.poll_interval", "100ms")  // delay in ReadID loop between ReadUID attempts
+	viper.Set("rfid.read_uid_timeout", "5s")  // timeout for each ReadUID call
 }
