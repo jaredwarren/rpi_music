@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jaredwarren/rpi_music/db"
@@ -21,7 +22,6 @@ import (
 
 // default pins used for reset and irq
 const (
-	// TODO: move to config
 	resetPin = "P1_22" // GPIO 25
 	irqPin   = "P1_18" // GPIO 24
 )
@@ -53,7 +53,7 @@ type RFIDReader struct {
 	RFID       *mfrc522.Dev
 	port       spi.PortCloser
 	IRQTimeout time.Duration
-	IsReady    bool
+	ready      atomic.Bool
 	logger     log.Logger
 	db         db.DBer
 }
@@ -116,7 +116,7 @@ func New(cfg *Config) (*RFIDReader, error) {
 	// setting the antenna signal strength, signal strength from 0 to 7
 	rr.RFID.SetAntennaGain(5)
 
-	rr.IsReady = true
+	rr.ready.Store(true)
 
 	cfg.logger.Info("RFID ready")
 	return rr, nil
@@ -144,17 +144,13 @@ func (r *RFIDReader) Start() {
 				time.Sleep(rfidCooldown())
 				continue
 			}
-			if song != nil {
-				r.logger.Info("found song", log.Any("song", song))
-				player.Beep()
-				if err := player.Play(song); err != nil {
-					r.logger.Error("error playing song", log.Error(err))
-				} else {
-					song.Plays++
-					_ = r.db.UpdateSong(song)
-				}
+			r.logger.Info("found song", log.Any("song", song))
+			player.Beep()
+			if err := player.Play(song); err != nil {
+				r.logger.Error("error playing song", log.Error(err))
 			} else {
-				r.logger.Info("song id not found", log.Any("id", rfid))
+				song.Plays++
+				_ = r.db.UpdateSong(song)
 			}
 
 			time.Sleep(rfidCooldown())
@@ -178,7 +174,7 @@ func (r *RFIDReader) ReadID() string {
 				return
 			default:
 			}
-			if !r.IsReady {
+			if !r.ready.Load() {
 				time.Sleep(poll)
 				continue
 			}
@@ -242,7 +238,7 @@ func rfidReadUIDTimeout() time.Duration {
 }
 
 func (r *RFIDReader) Close() {
-	r.IsReady = false
+	r.ready.Store(false)
 	// Halt idles the RFID device; port.Close() closes the SPI port.
 	if err := r.RFID.Halt(); err != nil {
 		r.logger.Error("rfid halt error", log.Error(err))

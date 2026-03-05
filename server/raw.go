@@ -2,9 +2,8 @@ package server
 
 import (
 	"fmt"
-	"html/template"
-	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -26,7 +25,7 @@ func (s *Server) RawHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Raw Files
-	songfiles, err := ioutil.ReadDir(viper.GetString("player.song_root"))
+	songfiles, err := os.ReadDir(viper.GetString("player.song_root"))
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return
@@ -39,7 +38,7 @@ func (s *Server) RawHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tfiles, err := ioutil.ReadDir(viper.GetString("player.thumb_root"))
+	tfiles, err := os.ReadDir(viper.GetString("player.thumb_root"))
 	if err != nil {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
 		return
@@ -57,15 +56,8 @@ func (s *Server) RawHandler(w http.ResponseWriter, r *http.Request) {
 		"SongFiles":  sFiles,
 		"RFIDSongs":  rss,
 		"ThumbFiles": thumbFiles,
-		TemplateTag:  s.GetToken(w, r),
+		TemplateTag:  s.getCSRFField(),
 	}
 
-	// for now
-	files := []string{
-		"templates/raw.html",
-		"templates/layout.html",
-	}
-	homepageTpl := template.Must(template.ParseFiles(files...))
-
-	s.render(w, r, homepageTpl, fullData)
+	s.render(w, r, s.templates["raw"], fullData)
 }

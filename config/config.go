@@ -40,7 +40,7 @@ func writeDefaultConfig(logger log.Logger) {
 	if err != nil {
 		logger.Panic("error creating config file", log.Any("file_path", fp), log.Error(err))
 	}
-	f.Close()
+	defer f.Close()
 
 	if err := viper.ReadInConfig(); err != nil {
 		logger.Panic("error reading config file", log.Error(err))
@@ -48,10 +48,8 @@ func writeDefaultConfig(logger log.Logger) {
 
 	SetDefaults()
 
-	// Write config
-	err = viper.WriteConfig()
-	if err != nil {
-		logger.Panic("error reading config file", log.Error(err))
+	if err := viper.WriteConfig(); err != nil {
+		logger.Panic("error writing config file", log.Error(err))
 	}
 }
 

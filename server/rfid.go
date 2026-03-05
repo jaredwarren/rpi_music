@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strings"
 
@@ -35,15 +34,10 @@ func (s *Server) EditRFIDSongFormHandler(w http.ResponseWriter, r *http.Request)
 
 	fullData := map[string]any{
 		"Rfids":     rfidMap,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
 
-	files := []string{
-		"templates/edit_rfid.html",
-		"templates/layout.html",
-	}
-	editSongFormTpl := template.Must(template.ParseFiles(files...))
-	s.render(w, r, editSongFormTpl, fullData)
+	s.render(w, r, s.templates["editRfid"], fullData)
 }
 
 func (s *Server) UnassignRFIDSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -95,15 +89,10 @@ func (s *Server) AssignRFIDToSongFormHandler(w http.ResponseWriter, r *http.Requ
 
 	fullData := map[string]any{
 		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
 
-	files := []string{
-		"templates/assign_song.html",
-		"templates/layout.html",
-	}
-	editSongFormTpl := template.Must(template.ParseFiles(files...))
-	s.render(w, r, editSongFormTpl, fullData)
+	s.render(w, r, s.templates["assignSong"], fullData)
 }
 
 func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request) {

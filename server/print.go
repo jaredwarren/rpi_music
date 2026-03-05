@@ -3,7 +3,6 @@ package server
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 
@@ -46,12 +45,7 @@ func (s *Server) PrintHandler(w http.ResponseWriter, r *http.Request) {
 
 	fullData := map[string]any{
 		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
-	files := []string{
-		"templates/print.html",
-		"templates/layout.html",
-	}
-	tpl := template.Must(template.New("base").ParseFiles(files...))
-	s.render(w, r, tpl, fullData)
+	s.render(w, r, s.templates["print"], fullData)
 }

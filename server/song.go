@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 	"os"
 	"os/exec"
@@ -21,14 +20,6 @@ import (
 	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
 	"github.com/jaredwarren/rpi_music/player"
-)
-
-const (
-	templateLayout    = "templates/layout.html"
-	templateEditSong  = "templates/edit_song.html"
-	templateIndex     = "templates/index.html"
-	templateNewSong   = "templates/new_song.html"
-	templatePlayVideo = "templates/play_video.html"
 )
 
 var videoURLRegex = regexp.MustCompile(`.+?(https?:)`)
@@ -110,10 +101,9 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 
 	fullData := map[string]any{
 		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
-	tpl := template.Must(template.ParseFiles(templateEditSong, templateLayout))
-	s.render(w, r, tpl, fullData)
+	s.render(w, r, s.templates["editSong"], fullData)
 }
 
 func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
@@ -140,22 +130,22 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 		"Songs":       songs,
 		"CurrentSong": player.GetPlaying(),
 		"Player":      player.GetPlayer(),
-		TemplateTag:   s.GetToken(w, r),
+		TemplateTag:   s.getCSRFField(),
 	}
-	tpl := template.Must(template.ParseFiles(templateIndex, templateLayout))
-	s.render(w, r, tpl, fullData)
+	s.render(w, r, s.templates["index"], fullData)
 }
 
 // enrichSongsWithRFID sets each song's RFID field when it appears in the RFID list.
 func enrichSongsWithRFID(songs []*model.Song, rfidList []*model.RFIDSong) {
+	songIDToRFID := make(map[string]string)
+	for _, rfidEntry := range rfidList {
+		for _, linkedID := range rfidEntry.Songs {
+			songIDToRFID[linkedID] = rfidEntry.RFID
+		}
+	}
 	for _, song := range songs {
-		for _, rfidEntry := range rfidList {
-			for _, linkedID := range rfidEntry.Songs {
-				if linkedID == song.ID {
-					song.RFID = rfidEntry.RFID
-					break
-				}
-			}
+		if rfid, ok := songIDToRFID[song.ID]; ok {
+			song.RFID = rfid
 		}
 	}
 }
@@ -163,25 +153,23 @@ func enrichSongsWithRFID(songs []*model.Song, rfidList []*model.RFIDSong) {
 func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]any{
 		"Song":      model.NewSong(),
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
-	tpl := template.Must(template.New("base").ParseFiles(templateNewSong, templateLayout))
-	s.render(w, r, tpl, fullData)
+	s.render(w, r, s.templates["newSong"], fullData)
 }
 
 // DownloadSong starts a background download and immediately redirects to /songs.
 // When the download finishes, a native desktop notification is shown.
 // Form: url (required), force (optional), rfid (optional).
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
-	logger := log.NewStdLogger(log.Info)
-	logger.Info("[DownloadSong] start")
+	s.logger.Info("[DownloadSong] start")
 
 	if err := r.ParseForm(); err != nil {
-		logger.Error(err.Error())
+		s.logger.Error(err.Error())
 		s.httpError(w, fmt.Errorf("DownloadSong|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
-	logger.Info("[DownloadSong] form", log.Any("form", r.PostForm))
+	s.logger.Info("[DownloadSong] form", log.Any("form", r.PostForm))
 
 	url := r.PostForm.Get("url")
 	if url == "" {
@@ -194,18 +182,18 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		song, err := s.downloadSong(context.Background(), url, force)
 		if err != nil {
-			logger.Error(err.Error())
+			s.logger.Error(err.Error())
 			notifyDesktop("Download failed", err.Error())
 			s.notifyBroadcast("Download failed", err.Error())
 			return
 		}
 		if err := s.db.CreateSong(song); err != nil {
-			logger.Error(err.Error())
+			s.logger.Error(err.Error())
 			notifyDesktop("Download failed", err.Error())
 			s.notifyBroadcast("Download failed", err.Error())
 			return
 		}
-		s.tryAssignRFID(rfid, song.ID, logger)
+		s.tryAssignRFID(rfid, song.ID, s.logger)
 		notifyDesktop("Download complete", song.Title)
 		s.notifyBroadcast("Download complete", song.Title)
 	}()
@@ -291,21 +279,20 @@ func (s *Server) tryAssignRFID(rfid, songID string, logger log.Logger) {
 }
 
 func (s *Server) downloadSong(ctx context.Context, rawURL string, force bool) (*model.Song, error) {
-	logger := log.Get()
 	if rawURL == "" {
 		return nil, downloader.ErrMissingURL
 	}
 	url := normalizeVideoURL(rawURL)
 
 	if !force {
-		if err := s.checkAlreadyDownloaded(ctx, url, logger); err != nil {
+		if err := s.checkAlreadyDownloaded(ctx, url, s.logger); err != nil {
 			return nil, err
 		}
 	}
 
-	filePath, video, err := s.downloader.DownloadVideo(ctx, url, logger)
+	filePath, video, err := s.downloader.DownloadVideo(ctx, url, s.logger)
 	if err != nil {
-		logger.Error(err.Error())
+		s.logger.Error(err.Error())
 		return nil, fmt.Errorf("DownloadVideo|%w", err)
 	}
 
@@ -387,8 +374,7 @@ func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	fullData := map[string]any{
 		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
-	tpl := template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles(templatePlayVideo, templateLayout))
-	s.render(w, r, tpl, fullData)
+	s.render(w, r, s.templates["playVideo"], fullData)
 }

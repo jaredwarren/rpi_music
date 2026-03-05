@@ -19,6 +19,14 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TemplateTag is the key used in template data for the CSRF field (empty when auth is disabled).
+const TemplateTag = "csrfField"
+
+// getCSRFField returns an empty HTML fragment so templates that reference .csrfField still render.
+func (s *Server) getCSRFField() template.HTML {
+	return template.HTML("")
+}
+
 // notifyEvent is sent to browser clients over SSE for Web Notifications (e.g. Chrome on Android).
 type notifyEvent struct {
 	Title string `json:"title"`
@@ -44,11 +52,7 @@ type HTMLServer struct {
 // Start launches the HTML Server
 func StartHTTPServer(cfg *Config) *HTMLServer {
 	cfg.Logger.Info("->StartHTTPServer")
-	// Setup Context
-	_, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	// init server
 	s := New(cfg.Db, cfg.Logger)
 
 	// Setup Handlers
@@ -56,10 +60,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	r.Use(s.loggingMiddleware)
 	r.Use(mux.CORSMethodMiddleware(r))
 
-	// Public Methods
-	r.HandleFunc("/login", s.LoginForm).Methods(http.MethodGet, http.MethodOptions)
-	r.HandleFunc("/logout", s.Logout).Methods(http.MethodGet, http.MethodOptions)
-	r.HandleFunc("/login", s.Login).Methods(http.MethodPost, http.MethodOptions)
+	// Public
 	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
 
 	// login-required methods
@@ -197,6 +198,7 @@ type Server struct {
 	db            db.DBer
 	logger        log.Logger
 	downloader    downloader.Downloader
+	templates     map[string]*template.Template
 	notifySubsMu  sync.Mutex
 	notifySubs    map[chan notifyEvent]struct{}
 }
@@ -221,12 +223,51 @@ func New(db db.DBer, l log.Logger) *Server {
 
 	l.Info("-> New server")
 
-	return &Server{
+	srv := &Server{
 		db:         db,
 		logger:     l,
 		downloader: dl,
 		notifySubs: make(map[chan notifyEvent]struct{}),
 	}
+	srv.templates = srv.loadTemplates()
+	return srv
+}
+
+func (s *Server) loadTemplates() map[string]*template.Template {
+	layout := "templates/layout.html"
+	m := map[string]*template.Template{
+		"index":        template.Must(template.ParseFiles("templates/index.html", layout)),
+		"editSong":     template.Must(template.ParseFiles("templates/edit_song.html", layout)),
+		"newSong":      template.Must(template.New("base").ParseFiles("templates/new_song.html", layout)),
+		"playVideo":    template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles("templates/play_video.html", layout)),
+		"editRfid":     template.Must(template.ParseFiles("templates/edit_rfid.html", layout)),
+		"assignSong":   template.Must(template.ParseFiles("templates/assign_song.html", layout)),
+		"raw":          template.Must(template.ParseFiles("templates/raw.html", layout)),
+		"admin":        template.Must(template.ParseFiles("templates/admin.html", layout)),
+		"adminEditSong": template.Must(template.ParseFiles("templates/editSong.html", layout)),
+		"player":       template.Must(template.New("base").ParseFiles("templates/player.html", layout)),
+		"print":        template.Must(template.New("base").ParseFiles("templates/print.html", layout)),
+	}
+	configFuncs := template.FuncMap{
+		"ConfigString": func(feature string) template.HTML {
+			v := viper.GetString(feature)
+			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input id="%s" type="text" value="%s" name="%s">`, feature, feature, feature, v, feature))
+		},
+		"ConfigBool": func(feature string) template.HTML {
+			v := viper.GetBool(feature)
+			checked := ""
+			if v {
+				checked = `checked`
+			}
+			return template.HTML(fmt.Sprintf(`<input type="checkbox" name="%s" %s><i class="form-icon"></i> %s`, feature, checked, feature))
+		},
+		"ConfigInt": func(feature string) template.HTML {
+			v := viper.GetInt(feature)
+			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input class="form-input" id="%s" type="number" placeholder="00" value="%d" name="%s">`, feature, feature, feature, v, feature))
+		},
+	}
+	m["config"] = template.Must(template.New("base").Funcs(configFuncs).ParseFiles("templates/config.html", layout))
+	return m
 }
 
 // notifyBroadcast sends a notification to all connected SSE clients (e.g. Chrome on Android).

@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"html/template"
 	"net/http"
 
 	"github.com/jaredwarren/rpi_music/log"
@@ -17,33 +16,9 @@ func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 
 	fullData := map[string]any{
 		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
-
-	files := []string{
-		"templates/config.html",
-		"templates/layout.html",
-	}
-	// TODO:  maybe these would be better as objects
-	tpl := template.Must(template.New("base").Funcs(template.FuncMap{
-		"ConfigString": func(feature string) template.HTML {
-			v := viper.GetString(feature)
-			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input id="%s" type="text" value="%s" name="%s">`, feature, feature, feature, v, feature))
-		},
-		"ConfigBool": func(feature string) template.HTML {
-			v := viper.GetBool(feature)
-			checked := ""
-			if v {
-				checked = `checked`
-			}
-			return template.HTML(fmt.Sprintf(`<input type="checkbox" name="%s" %s><i class="form-icon"></i> %s`, feature, checked, feature))
-		},
-		"ConfigInt": func(feature string) template.HTML {
-			v := viper.GetInt(feature)
-			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input class="form-input" id="%s" type="number" placeholder="00" value="%d" name="%s">`, feature, feature, feature, v, feature))
-		},
-	}).ParseFiles(files...))
-	s.render(w, r, tpl, fullData)
+	s.render(w, r, s.templates["config"], fullData)
 }
 
 func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {

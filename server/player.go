@@ -3,15 +3,12 @@ package server
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/player"
 )
-
-const templatePlayer = "templates/player.html"
 
 // PlayerHandler renders the player status page.
 func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
@@ -21,10 +18,9 @@ func (s *Server) PlayerHandler(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]any{
 		"Player":    cp,
 		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
-	tpl := template.Must(template.New("base").ParseFiles(templatePlayer, "templates/layout.html"))
-	s.render(w, r, tpl, fullData)
+	s.render(w, r, s.templates["player"], fullData)
 }
 
 // PlaySongHandler looks up the song by ID and starts playback.

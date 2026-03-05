@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"html/template"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -22,6 +23,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// newTestTemplates returns a minimal template map so handlers that call render do not panic.
+func newTestTemplates() map[string]*template.Template {
+	t := template.Must(template.New("").Parse("{{.}}"))
+	return map[string]*template.Template{
+		"index": t, "editSong": t, "newSong": t, "playVideo": t, "editRfid": t,
+		"assignSong": t, "raw": t, "admin": t, "adminEditSong": t, "player": t, "print": t, "config": t,
+	}
+}
 
 func TestJSONHandler(t *testing.T) {
 	s := &Server{logger: log.NewNoOpLogger()}
@@ -300,6 +310,7 @@ func TestListSongHandler(t *testing.T) {
 						Thumbnails: youtube.Thumbnails{{URL: "thumb_url"}},
 					}},
 				},
+				templates: newTestTemplates(),
 			}
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)

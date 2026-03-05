@@ -64,7 +64,9 @@ func (d *DLCommand) ExecCombinedContext(ctx context.Context, exArgs ...string) (
 	if !d.parsed {
 		d.parse()
 	}
-	c, args := d.GetCommand()
+	c, baseArgs := d.GetCommand()
+	args := make([]string, len(baseArgs), len(baseArgs)+len(exArgs))
+	copy(args, baseArgs)
 	args = append(args, exArgs...)
 	cmd := exec.CommandContext(ctx, c, args...)
 	out, err := cmd.CombinedOutput()
@@ -87,7 +89,9 @@ func (d *DLCommand) ExecBContext(ctx context.Context, exArgs ...string) ([]byte,
 	if !d.parsed {
 		d.parse()
 	}
-	c, args := d.GetCommand()
+	c, baseArgs := d.GetCommand()
+	args := make([]string, len(baseArgs), len(baseArgs)+len(exArgs))
+	copy(args, baseArgs)
 	args = append(args, exArgs...)
 	cmd := exec.CommandContext(ctx, c, args...)
 	std, err := cmd.Output()

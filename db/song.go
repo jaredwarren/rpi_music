@@ -48,7 +48,7 @@ type SongDB struct {
 
 // NewSongDB opens the database at path and ensures required buckets exist.
 func NewSongDB(path string) (DBer, error) {
-	db, err := bolt.Open(path, 0o600, nil)
+	db, err := bolt.Open(path, 0o600, &bolt.Options{Timeout: 5 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}

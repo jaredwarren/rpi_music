@@ -3,18 +3,15 @@ package server
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
 	"sort"
 
 	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/db"
-	"github.com/jaredwarren/rpi_music/log"
 )
 
 func (s *Server) AdminEditSong(w http.ResponseWriter, r *http.Request) {
-	logger := log.Get()
-	logger.Info("AdminEditSong")
+	s.logger.Info("AdminEditSong")
 
 	vars := mux.Vars(r)
 	songID := vars["song_id"]
@@ -31,19 +28,11 @@ func (s *Server) AdminEditSong(w http.ResponseWriter, r *http.Request) {
 	fullData := map[string]any{
 		"Song": song,
 	}
-
-	files := []string{
-		"templates/editSong.html",
-		"templates/layout.html",
-	}
-	homepageTpl := template.Must(template.ParseFiles(files...))
-
-	s.render(w, r, homepageTpl, fullData)
+	s.render(w, r, s.templates["adminEditSong"], fullData)
 }
 
 func (s *Server) AdminInsertSong(w http.ResponseWriter, r *http.Request) {
-	logger := log.Get()
-	logger.Info("AdminInsertSong")
+	s.logger.Info("AdminInsertSong")
 
 	vars := mux.Vars(r)
 	songID := vars["song_id"]
@@ -108,24 +97,19 @@ func (s *Server) AdminInsertSong(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) AdminUpdateSong(w http.ResponseWriter, r *http.Request) {
-	logger := log.Get()
-	logger.Info("AdminUpdateSong")
+	s.logger.Info("AdminUpdateSong")
 }
 
 func (s *Server) AdminDelete(w http.ResponseWriter, r *http.Request) {
-	logger := log.Get()
-	logger.Info("AdminDelete")
+	s.logger.Info("AdminDelete")
 }
 
 func (s *Server) AdminTODO(w http.ResponseWriter, r *http.Request) {
-	logger := log.Get()
-	logger.Info("AdminTODO")
+	s.logger.Info("AdminTODO")
 }
 
 func (s *Server) AdminHome(w http.ResponseWriter, r *http.Request) {
-	logger := log.Get()
-
-	logger.Info("AdminHome")
+	s.logger.Info("AdminHome")
 
 	songs, err := s.db.ListSongs()
 	if err != nil {
@@ -138,13 +122,15 @@ func (s *Server) AdminHome(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("ListSongHandler|ListRFIDSongs|%w", err), http.StatusBadRequest)
 		return
 	}
-	for _, s := range songs {
-		for _, r := range rfids {
-			for _, rs := range r.Songs {
-				if rs == s.ID {
-					s.RFID = r.RFID
-				}
-			}
+	songIDToRFID := make(map[string]string)
+	for _, rf := range rfids {
+		for _, sid := range rf.Songs {
+			songIDToRFID[sid] = rf.RFID
+		}
+	}
+	for _, song := range songs {
+		if rfid, ok := songIDToRFID[song.ID]; ok {
+			song.RFID = rfid
 		}
 	}
 
@@ -154,15 +140,7 @@ func (s *Server) AdminHome(w http.ResponseWriter, r *http.Request) {
 
 	fullData := map[string]any{
 		"Songs":     songs,
-		TemplateTag: s.GetToken(w, r),
+		TemplateTag: s.getCSRFField(),
 	}
-
-	// for now
-	files := []string{
-		"templates/admin.html",
-		"templates/layout.html",
-	}
-	homepageTpl := template.Must(template.ParseFiles(files...))
-
-	s.render(w, r, homepageTpl, fullData)
+	s.render(w, r, s.templates["admin"], fullData)
 }
