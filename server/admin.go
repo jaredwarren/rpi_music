@@ -3,136 +3,61 @@ package server
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"sort"
 
-	"github.com/gorilla/mux"
 	"github.com/jaredwarren/rpi_music/db"
 )
 
 func (s *Server) AdminEditSong(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("AdminEditSong")
-
-	vars := mux.Vars(r)
-	songID := vars["song_id"]
+	songID := r.PathValue("song_id")
 	song, err := s.db.GetSong(songID)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
 			return
 		}
-		s.httpError(w, fmt.Errorf("PlaySongHandler|db.View|%w", err), http.StatusInternalServerError)
+		s.httpError(w, fmt.Errorf("AdminEditSong|GetSong|%w", err), http.StatusInternalServerError)
 		return
 	}
 
 	fullData := map[string]any{
-		"Song": song,
+		"Song":      song,
+		TemplateTag: template.HTML(""),
 	}
 	s.render(w, r, s.templates["adminEditSong"], fullData)
 }
 
 func (s *Server) AdminInsertSong(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("AdminInsertSong")
-
-	vars := mux.Vars(r)
-	songID := vars["song_id"]
-
-	err := r.ParseForm()
-	if err != nil {
-		s.httpError(w, fmt.Errorf("AdminInsertSong|ParseForm|%w", err), http.StatusBadRequest)
-		return
-	}
-
-	if songID == "new" {
-		// insert song here
-	} else {
-		// Update song
-		song, err := s.db.GetSong(songID)
-		if err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
-				return
-			}
-			s.httpError(w, fmt.Errorf("AdminInsertSong|db.View|%w", err), http.StatusInternalServerError)
-			return
-		}
-
-		// update song
-		thumb := r.Form.Get("thumb")
-		fmt.Fprintf(w, "thumb:%s\n", thumb)
-		title := r.Form.Get("title")
-		fmt.Fprintf(w, "title:%s\n", title)
-		url := r.Form.Get("url")
-		fmt.Fprintf(w, "url:%s\n", url)
-		filepath := r.Form.Get("filepath")
-		fmt.Fprintf(w, "filepath:%s\n", filepath)
-
-		plays := r.Form.Get("plays")
-		fmt.Fprintf(w, "plays:%s\n", plays)
-		// num, err := strconv.Atoi(str)
-		// if err != nil {
-		// 	s.httpError(w, fmt.Errorf("AdminInsertSong|plays invalid|%w", err), http.StatusInternalServerError)
-		// 	return
-		// } else {
-		// 	fmt.Println("Converted number:", num)
-		// }
-		// song.Plays = plays
-
-		created_at := r.Form.Get("created_at")
-		fmt.Fprintf(w, "created_at:%s\n", created_at)
-		updated_at := r.Form.Get("updated_at")
-		fmt.Fprintf(w, "updated_at:%s\n", updated_at)
-
-		song.Title = title
-		song.Thumbnail = thumb
-		song.URL = url
-		song.FilePath = filepath
-		// song.CreatedAt = created_at
-		// song.UpdatedAt = updated_at
-
-		// get and validate song info here
-
-	}
-	fmt.Fprintf(w, "TODO: finish insert/update:%s", songID)
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) AdminUpdateSong(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("AdminUpdateSong")
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) AdminDelete(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("AdminDelete")
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) AdminTODO(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("AdminTODO")
+	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
 func (s *Server) AdminHome(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("AdminHome")
-
 	songs, err := s.db.ListSongs()
 	if err != nil {
-		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
+		s.httpError(w, fmt.Errorf("AdminHome|ListSongs|%w", err), http.StatusBadRequest)
 		return
 	}
 
 	rfids, err := s.db.ListRFIDSongs()
 	if err != nil {
-		s.httpError(w, fmt.Errorf("ListSongHandler|ListRFIDSongs|%w", err), http.StatusBadRequest)
+		s.httpError(w, fmt.Errorf("AdminHome|ListRFIDSongs|%w", err), http.StatusBadRequest)
 		return
 	}
-	songIDToRFID := make(map[string]string)
-	for _, rf := range rfids {
-		for _, sid := range rf.Songs {
-			songIDToRFID[sid] = rf.RFID
-		}
-	}
-	for _, song := range songs {
-		if rfid, ok := songIDToRFID[song.ID]; ok {
-			song.RFID = rfid
-		}
-	}
+	enrichSongsWithRFID(songs, rfids)
 
 	sort.Slice(songs, func(i, j int) bool {
 		return songs[i].CreatedAt.Before(songs[j].CreatedAt)
@@ -140,7 +65,7 @@ func (s *Server) AdminHome(w http.ResponseWriter, r *http.Request) {
 
 	fullData := map[string]any{
 		"Songs":     songs,
-		TemplateTag: s.getCSRFField(),
+		TemplateTag: template.HTML(""),
 	}
 	s.render(w, r, s.templates["admin"], fullData)
 }

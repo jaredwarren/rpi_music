@@ -24,8 +24,3 @@ func NewSong() *Song {
 	}
 }
 
-type Playlist struct {
-	ID    string
-	Name  string
-	Songs []*Song
-}

@@ -10,35 +10,26 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-const (
-	SongBucket   = "SongBucket"
-	SongBucketV2 = "SongBucketV2"
-)
+const SongBucketV2 = "SongBucketV2"
 
-// ErrNotFound is returned when a song or resource is not found in the database.
-var ErrNotFound = errors.New("db: not found")
-
-// DBer defines the database operations for songs and RFID mappings.
-type DBer interface {
-	Close() error
-
-	// Songs
+// SongStore is the read/write interface for song records.
+type SongStore interface {
 	GetSong(songID string) (*model.Song, error)
 	ListSongs() ([]*model.Song, error)
 	CreateSong(song *model.Song) error
 	UpdateSong(song *model.Song) error
 	DeleteSong(id string) error
 	SongExists(id string) (bool, error)
+}
 
-	// RFID
-	GetRFIDSong(rfid string) (*model.RFIDSong, error)
-	GetSongRFID(songID string) (*model.RFIDSong, error)
-	AddRFIDSong(rfid, songID string) error
-	RemoveRFIDSong(rfid, songID string) error
-	DeleteRFID(id string) error
-	ListRFIDSongs() ([]*model.RFIDSong, error)
-	RFIDExists(rfid string) (bool, error)
-	DeleteSongFromRFID(songID string) error
+// ErrNotFound is returned when a song or resource is not found in the database.
+var ErrNotFound = errors.New("db: not found")
+
+// DBer is the full database interface embedding both song and RFID stores.
+type DBer interface {
+	SongStore
+	RFIDStore
+	Close() error
 }
 
 // SongDB is a BoltDB-backed implementation of DBer.
@@ -54,7 +45,7 @@ func NewSongDB(path string) (DBer, error) {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, name := range []string{SongBucket, SongBucketV2, RFIDBucket} {
+		for _, name := range []string{SongBucketV2, RFIDBucket} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("create bucket %q: %w", name, err)
 			}

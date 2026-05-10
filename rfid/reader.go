@@ -1,17 +1,14 @@
 package rfid
 
 import (
+	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/jaredwarren/rpi_music/db"
-	"github.com/jaredwarren/rpi_music/log"
-	"github.com/jaredwarren/rpi_music/player"
-	"github.com/spf13/viper"
+	"github.com/rs/zerolog"
 	"periph.io/x/conn/v3/gpio"
 	"periph.io/x/conn/v3/gpio/gpioreg"
 	"periph.io/x/conn/v3/spi"
@@ -20,157 +17,146 @@ import (
 	host "periph.io/x/host/v3"
 )
 
-// default pins used for reset and irq
+// Default GPIO pin names for reset and IRQ lines.
 const (
-	resetPin = "P1_22" // GPIO 25
-	irqPin   = "P1_18" // GPIO 24
+	defaultResetPin = "P1_22" // GPIO 25
+	defaultIRQPin   = "P1_18" // GPIO 24
 )
 
-func InitRFIDReader(db db.DBer, logger log.Logger) *RFIDReader {
-	logger.Info("Initializing RFID")
-	cfg := DefaultConfig()
-	cfg.logger = logger
-	cfg.db = db
-	r, err := New(cfg)
-	if err != nil {
-		logger.Panic("error creating new reader", log.Error(err))
-	}
-
-	r.Start()
-	return r
+// Event is emitted by the Reader each time a tag UID is read.
+type Event struct {
+	UID string
 }
 
+// Config holds all settings for the RFID reader.
 type Config struct {
-	SPIPort    string
-	ResetPin   string
-	IRQPin     string
-	IRQTimeout time.Duration
-	logger     log.Logger
-	db         db.DBer
+	SPIPort        string
+	ResetPin       string
+	IRQPin         string
+	Cooldown       time.Duration
+	PollInterval   time.Duration
+	ReadUIDTimeout time.Duration
 }
 
-type RFIDReader struct {
-	RFID       *mfrc522.Dev
-	port       spi.PortCloser
-	IRQTimeout time.Duration
-	ready      atomic.Bool
-	logger     log.Logger
-	db         db.DBer
+func (c *Config) resetPin() string {
+	if c.ResetPin != "" {
+		return c.ResetPin
+	}
+	return defaultResetPin
 }
 
-func DefaultConfig() *Config {
-	cfg := &Config{}
-	// Note: SPIPort is ""
-	if cfg.ResetPin == "" {
-		cfg.ResetPin = resetPin
+func (c *Config) irqPin() string {
+	if c.IRQPin != "" {
+		return c.IRQPin
 	}
-	if cfg.IRQPin == "" {
-		cfg.IRQPin = irqPin
-	}
-	return cfg
+	return defaultIRQPin
 }
 
-/*
-Setup inits and starts hardware.
-*/
-func New(cfg *Config) (*RFIDReader, error) {
-	if cfg == nil {
-		cfg = DefaultConfig()
+func (c *Config) cooldown() time.Duration {
+	if c.Cooldown > 0 {
+		return c.Cooldown
 	}
+	return 2 * time.Second
+}
 
-	rr := &RFIDReader{
-		logger: cfg.logger,
-		db:     cfg.db,
+func (c *Config) pollInterval() time.Duration {
+	if c.PollInterval > 0 {
+		return c.PollInterval
 	}
+	return 100 * time.Millisecond
+}
 
-	// guarantees all drivers are loaded.
+func (c *Config) readUIDTimeout() time.Duration {
+	if c.ReadUIDTimeout > 0 {
+		return c.ReadUIDTimeout
+	}
+	return 5 * time.Second
+}
+
+// Reader polls an MFRC522 chip over SPI and emits tag UIDs on the events channel.
+// It has no knowledge of songs, players, or databases.
+type Reader struct {
+	rfid   *mfrc522.Dev
+	port   spi.PortCloser
+	cfg    Config
+	ready  atomic.Bool
+	events chan<- Event
+	logger zerolog.Logger
+}
+
+// New initialises the SPI bus and MFRC522 device.
+func New(cfg Config, events chan<- Event, logger zerolog.Logger) (*Reader, error) {
 	if _, err := host.Init(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rfid: host init: %w", err)
 	}
 
-	// get the first available spi port with empty string.
 	port, err := spireg.Open(cfg.SPIPort)
 	if err != nil {
-		return nil, err
-	}
-	rr.port = port
-
-	// get GPIO rest pin from its name
-	var gpioResetPin gpio.PinOut = gpioreg.ByName(cfg.ResetPin)
-	if gpioResetPin == nil {
-		return nil, fmt.Errorf("failed to find reset pin %v", cfg.ResetPin)
+		return nil, fmt.Errorf("rfid: spi open: %w", err)
 	}
 
-	// get GPIO irq pin from its name
-	var gpioIRQPin gpio.PinIn = gpioreg.ByName(cfg.IRQPin)
-	if gpioIRQPin == nil {
-		return nil, fmt.Errorf("failed to find IRQ pin %v", cfg.IRQPin)
+	var gpioReset gpio.PinOut = gpioreg.ByName(cfg.resetPin())
+	if gpioReset == nil {
+		_ = port.Close()
+		return nil, fmt.Errorf("rfid: reset pin %q not found", cfg.resetPin())
 	}
 
-	rfid, err := mfrc522.NewSPI(rr.port, gpioResetPin, gpioIRQPin, mfrc522.WithSync())
+	var gpioIRQ gpio.PinIn = gpioreg.ByName(cfg.irqPin())
+	if gpioIRQ == nil {
+		_ = port.Close()
+		return nil, fmt.Errorf("rfid: IRQ pin %q not found", cfg.irqPin())
+	}
+
+	dev, err := mfrc522.NewSPI(port, gpioReset, gpioIRQ, mfrc522.WithSync())
 	if err != nil {
-		return nil, err
+		_ = port.Close()
+		return nil, fmt.Errorf("rfid: mfrc522 init: %w", err)
 	}
-	rr.RFID = rfid
+	dev.SetAntennaGain(5)
 
-	// setting the antenna signal strength, signal strength from 0 to 7
-	rr.RFID.SetAntennaGain(5)
-
-	rr.ready.Store(true)
-
-	cfg.logger.Info("RFID ready")
-	return rr, nil
+	r := &Reader{rfid: dev, port: port, cfg: cfg, events: events, logger: logger}
+	r.ready.Store(true)
+	logger.Info().Msg("RFID ready")
+	return r, nil
 }
 
-func (r *RFIDReader) Start() {
+// Start launches the polling goroutine. It exits when ctx is cancelled.
+func (r *Reader) Start(ctx context.Context) {
 	go func() {
 		for {
-			rfid := r.ReadID()
-
-			rfidSong, err := r.db.GetRFIDSong(rfid)
-			if err != nil {
-				if !errors.Is(err, db.ErrNotFound) {
-					r.logger.Error("GetRFIDSong error", log.Error(err))
-				}
-				continue
-			}
-			if len(rfidSong.Songs) == 0 {
-				continue
+			uid := r.readID(ctx)
+			if uid == "" {
+				return
 			}
 
-			song, err := r.db.GetSong(rfidSong.Songs[0])
-			if err != nil {
-				r.logger.Error("error reading db", log.Error(err))
-				time.Sleep(rfidCooldown())
-				continue
-			}
-			r.logger.Info("found song", log.Any("song", song))
-			player.Beep()
-			if err := player.Play(song); err != nil {
-				r.logger.Error("error playing song", log.Error(err))
-			} else {
-				song.Plays++
-				_ = r.db.UpdateSong(song)
+			select {
+			case r.events <- Event{UID: uid}:
+			case <-ctx.Done():
+				return
 			}
 
-			time.Sleep(rfidCooldown())
+			select {
+			case <-time.After(r.cfg.cooldown()):
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 }
 
-// ReadID blocks until one RFID UID is read, then returns its hex string.
-func (r *RFIDReader) ReadID() string {
+// readID blocks until one UID is read or ctx is cancelled.
+// Returns "" on cancellation.
+func (r *Reader) readID(ctx context.Context) string {
 	cb := make(chan []byte, 1)
-	done := make(chan struct{})
-	defer close(done)
-
-	poll := rfidPollInterval()
-	readTimeout := rfidReadUIDTimeout()
+	inner, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	go func() {
+		poll := r.cfg.pollInterval()
+		timeout := r.cfg.readUIDTimeout()
 		for {
 			select {
-			case <-done:
+			case <-inner.Done():
 				return
 			default:
 			}
@@ -178,72 +164,44 @@ func (r *RFIDReader) ReadID() string {
 				time.Sleep(poll)
 				continue
 			}
-			data, err := r.RFID.ReadUID(readTimeout)
+			data, err := r.rfid.ReadUID(timeout)
 			if len(data) > 0 {
-				r.logger.Info("r.RFID.ReadUID:", log.Any("hex", hex.EncodeToString(data)))
+				r.logger.Info().Str("hex", hex.EncodeToString(data)).Msg("ReadUID")
 			}
-			if err != nil && !isTimeoutError(err) {
-				r.logger.Error("r.RFID.ReadUID err:", log.Any("error", err))
-			}
-			// Some devices send wrong data when the chip is "too far" from the receiver.
 			if err != nil {
+				if !isTimeoutError(err) {
+					r.logger.Error().Err(err).Msg("ReadUID error")
+				}
 				time.Sleep(poll)
 				continue
 			}
 			select {
 			case cb <- data:
-			case <-done:
-				return
+			case <-inner.Done():
 			}
-			time.Sleep(poll)
+			return
 		}
 	}()
 
-	data := <-cb
-	return hex.EncodeToString(data)
+	select {
+	case data := <-cb:
+		return hex.EncodeToString(data)
+	case <-ctx.Done():
+		return ""
+	}
 }
 
 func isTimeoutError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), "timeout waiting for IRQ")
+	return err != nil && strings.Contains(err.Error(), "timeout waiting for IRQ")
 }
 
-// rfidCooldown returns the pause after handling a tag (config: rfid.cooldown, default 2s).
-func rfidCooldown() time.Duration {
-	d := viper.GetDuration("rfid.cooldown")
-	if d <= 0 {
-		return 2 * time.Second
-	}
-	return d
-}
-
-// rfidPollInterval returns the delay between ReadUID attempts (config: rfid.poll_interval, default 100ms).
-func rfidPollInterval() time.Duration {
-	d := viper.GetDuration("rfid.poll_interval")
-	if d <= 0 {
-		return 100 * time.Millisecond
-	}
-	return d
-}
-
-// rfidReadUIDTimeout returns the timeout for each ReadUID call (config: rfid.read_uid_timeout, default 5s).
-func rfidReadUIDTimeout() time.Duration {
-	d := viper.GetDuration("rfid.read_uid_timeout")
-	if d <= 0 {
-		return 5 * time.Second
-	}
-	return d
-}
-
-func (r *RFIDReader) Close() {
+// Close halts the device and closes the SPI port.
+func (r *Reader) Close() {
 	r.ready.Store(false)
-	// Halt idles the RFID device; port.Close() closes the SPI port.
-	if err := r.RFID.Halt(); err != nil {
-		r.logger.Error("rfid halt error", log.Error(err))
+	if err := r.rfid.Halt(); err != nil {
+		r.logger.Error().Err(err).Msg("rfid halt")
 	}
 	if err := r.port.Close(); err != nil {
-		r.logger.Error("rfid port close error", log.Error(err))
+		r.logger.Error().Err(err).Msg("rfid port close")
 	}
 }

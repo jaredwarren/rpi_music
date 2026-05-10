@@ -11,150 +11,135 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/jaredwarren/rpi_music/config"
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
-	"github.com/jaredwarren/rpi_music/log"
-	"github.com/jaredwarren/rpi_music/model"
-	"github.com/spf13/viper"
+	"github.com/jaredwarren/rpi_music/player"
+	"github.com/rs/zerolog"
 )
 
-// TemplateTag is the key used in template data for the CSRF field (empty when auth is disabled).
+// TemplateTag is the key used in template data maps for the CSRF field placeholder.
 const TemplateTag = "csrfField"
 
-// getCSRFField returns an empty HTML fragment so templates that reference .csrfField still render.
-func (s *Server) getCSRFField() template.HTML {
-	return template.HTML("")
-}
-
-// notifyEvent is sent to browser clients over SSE for Web Notifications (e.g. Chrome on Android).
+// notifyEvent is sent to browser clients over SSE.
 type notifyEvent struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
 }
 
-// Config provides basic configuration
+// Config provides the settings needed to start the HTTP server.
 type Config struct {
-	Host         string
+	AppConfig    *config.Config
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	Db           db.DBer
-	Logger       log.Logger
+	Logger       zerolog.Logger
+	Player       *player.Player
 }
 
-// HTMLServer represents the web service that serves up HTML
+// HTMLServer is the running HTTP server lifecycle handle.
 type HTMLServer struct {
 	server *http.Server
 	wg     sync.WaitGroup
-	logger log.Logger
+	logger zerolog.Logger
 }
 
-// Start launches the HTML Server
+// StartHTTPServer registers routes and starts listening.
 func StartHTTPServer(cfg *Config) *HTMLServer {
-	cfg.Logger.Info("->StartHTTPServer")
+	cfg.Logger.Info().Msg("StartHTTPServer")
 
-	s := New(cfg.Db, cfg.Logger)
+	s := New(cfg.AppConfig, cfg.Db, cfg.Player, cfg.Logger)
 
-	// Setup Handlers
-	r := mux.NewRouter()
-	r.Use(s.loggingMiddleware)
-	r.Use(mux.CORSMethodMiddleware(r))
+	mux := http.NewServeMux()
 
-	// Public
-	r.PathPrefix("/public/").Handler(http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
+	// Static assets
+	mux.Handle("GET /public/", http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	mux.Handle("GET /song_files/", http.StripPrefix("/song_files/", http.FileServer(http.Dir(cfg.AppConfig.Player.SongRoot))))
+	mux.Handle("GET /thumb_files/", http.StripPrefix("/thumb_files/", http.FileServer(http.Dir(cfg.AppConfig.Player.ThumbRoot))))
 
-	// login-required methods
-	sub := r.PathPrefix("/").Subrouter()
-	// sub.Use(s.requireLoginMiddleware)
+	// Misc
+	mux.HandleFunc("POST /log", s.Log)
+	mux.HandleFunc("GET /stop", s.StopSongHandler)
 
-	sub.HandleFunc("/log", s.Log)
-	sub.HandleFunc("/logs", s.Logs)
-	sub.HandleFunc("/stop", s.StopSongHandler)
+	// Songs list
+	mux.HandleFunc("GET /", s.ListSongHandler)
+	mux.HandleFunc("GET /songs", s.ListSongHandler)
 
-	// list songs
-	sub.HandleFunc("/", s.ListSongHandler).Methods(http.MethodGet)
-	sub.HandleFunc("/songs", s.ListSongHandler).Methods(http.MethodGet)
-	sub.HandleFunc("/rfids", s.EditRFIDSongFormHandler).Methods(http.MethodGet)
-	sub.HandleFunc("/rfid/{rfid}/{song_id}", s.UnassignRFIDSongHandler).Methods(http.MethodDelete)
-	sub.HandleFunc("/{rfid}/json", s.JSONGetSongByRFID).Methods(http.MethodGet)
+	// RFID management
+	mux.HandleFunc("GET /rfids", s.EditRFIDSongFormHandler)
+	mux.HandleFunc("DELETE /rfid/{rfid}/{song_id}", s.UnassignRFIDSongHandler)
+	mux.HandleFunc("GET /rfid/{rfid}/json", s.JSONGetSongByRFID)
 
-	// Song
-	ssub := sub.PathPrefix("/song").Subrouter()
-	ssub.HandleFunc("", s.NewSongHandler).Methods(http.MethodPost)
+	// Song — new
+	mux.HandleFunc("GET /song/new", s.NewSongFormHandler)
+	mux.HandleFunc("POST /song/new", s.NewSongHandler)
+	mux.HandleFunc("POST /song", s.NewSongHandler)
 
-	// Download Song
-	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongFormHandler).Methods(http.MethodGet) // GET /song/new
-	ssub.HandleFunc(fmt.Sprintf("/%s", model.NewSongID), s.NewSongHandler).Methods(http.MethodPost)    // POST /song/new
-	sub.HandleFunc("/download", s.DownloadSong).Methods(http.MethodPost)                               // Raw download
-	sub.HandleFunc("/events", s.EventsSSE).Methods(http.MethodGet)                                     // SSE for browser notifications
+	// Song — download (async)
+	mux.HandleFunc("POST /download", s.DownloadSong)
 
-	// Assign rfid to song
-	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongFormHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/rfid", s.AssignRFIDToSongHandler).Methods(http.MethodPost)
+	// SSE for browser notifications
+	mux.HandleFunc("GET /events", s.EventsSSE)
 
-	// Play
-	ssub.HandleFunc("/{song_id}", s.DeleteSongHandler).Methods(http.MethodDelete)
-	ssub.HandleFunc("/{song_id}/play", s.PlaySongHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/delete", s.DeleteSongHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/stop", s.StopSongHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/play_video", s.PlayVideoHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/print", s.PrintHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/{song_id}/json", s.JSONHandler).Methods(http.MethodGet)
-	ssub.HandleFunc("/json", s.JSONHandler).Methods(http.MethodGet)
+	// Song — RFID assignment
+	mux.HandleFunc("GET /song/{song_id}/rfid", s.AssignRFIDToSongFormHandler)
+	mux.HandleFunc("POST /song/{song_id}/rfid", s.AssignRFIDToSongHandler)
 
-	// Config Endpoints
-	csub := sub.PathPrefix("/config").Subrouter()
-	csub.HandleFunc("", s.ConfigFormHandler).Methods(http.MethodGet)
-	csub.HandleFunc("", s.ConfigHandler).Methods(http.MethodPost)
+	// Song — actions
+	mux.HandleFunc("DELETE /song/{song_id}", s.DeleteSongHandler)
+	mux.HandleFunc("GET /song/{song_id}/play", s.PlaySongHandler)
+	mux.HandleFunc("GET /song/{song_id}/delete", s.DeleteSongHandler)
+	mux.HandleFunc("GET /song/{song_id}/stop", s.StopSongHandler)
+	mux.HandleFunc("GET /song/{song_id}/play_video", s.PlayVideoHandler)
+	mux.HandleFunc("GET /song/{song_id}/redownload", s.RedownloadSongAssetsHandler)
+	mux.HandleFunc("GET /song/{song_id}/print", s.PrintHandler)
+	mux.HandleFunc("GET /song/{song_id}/json", s.JSONHandler)
+	mux.HandleFunc("GET /song/json", s.JSONHandler)
 
-	// Player Endpoints
-	psub := sub.PathPrefix("/player").Subrouter()
-	psub.HandleFunc("/", s.PlayerHandler).Methods(http.MethodGet)
+	// Config
+	mux.HandleFunc("GET /config", s.ConfigFormHandler)
+	mux.HandleFunc("POST /config", s.ConfigHandler)
+
+	// Player
+	mux.HandleFunc("GET /player/", s.PlayerHandler)
 
 	// Admin
-	asub := sub.PathPrefix("/admin").Subrouter()
-	asub.HandleFunc("", s.RawHandler).Methods(http.MethodGet)
-	asub.HandleFunc("/song/{song_id}", s.AdminEditSong).Methods(http.MethodGet)
-	asub.HandleFunc("/song/{song_id}", s.AdminInsertSong).Methods(http.MethodPost)
-	asub.HandleFunc("/song/{song_id}", s.AdminUpdateSong).Methods(http.MethodPatch)
-	asub.HandleFunc("/song/{song_id}", s.AdminDelete).Methods(http.MethodDelete)
+	mux.HandleFunc("GET /admin", s.RawHandler)
+	mux.HandleFunc("GET /admin/song/{song_id}", s.AdminEditSong)
+	mux.HandleFunc("POST /admin/song/{song_id}", s.AdminInsertSong)
+	mux.HandleFunc("PATCH /admin/song/{song_id}", s.AdminUpdateSong)
+	mux.HandleFunc("DELETE /admin/song/{song_id}", s.AdminDelete)
 
-	// Static files
-	sub.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
-	sub.PathPrefix("/song_files/").Handler(http.StripPrefix("/song_files/", http.FileServer(http.Dir(viper.GetString("player.song_root")))))
-	sub.PathPrefix("/thumb_files/").Handler(http.StripPrefix("/thumb_files/", http.FileServer(http.Dir(viper.GetString("player.thumb_root")))))
+	// Raw debug view
+	mux.HandleFunc("GET /raw", s.RawHandler)
 
-	rawsub := sub.PathPrefix("/raw").Subrouter()
-	rawsub.HandleFunc("", s.RawHandler)
+	var handler http.Handler = mux
+	handler = s.loggingMiddleware(handler)
 
-	// Handle everything else
-	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/songs", http.StatusFound)
-	})
-
-	cfg.Logger.Info("-> HTMLServer")
-	// Create the HTML Server
 	htmlServer := HTMLServer{
 		logger: cfg.Logger,
 		server: &http.Server{
-			Addr:           cfg.Host,
-			Handler:        r,
+			Addr:           cfg.AppConfig.Host,
+			Handler:        handler,
 			ReadTimeout:    cfg.ReadTimeout,
 			WriteTimeout:   cfg.WriteTimeout,
 			MaxHeaderBytes: 1 << 20,
 		},
 	}
 
-	// Start the listener
 	htmlServer.wg.Add(1)
 	go func() {
-		cfg.Logger.Info("Starting HTTP server", log.Any("host", cfg.Host), log.Any("https", viper.GetBool("https")))
-		if viper.GetBool("https") {
-			htmlServer.server.ListenAndServeTLS("localhost.crt", "localhost.key")
+		defer htmlServer.wg.Done()
+		cfg.Logger.Info().
+			Str("host", cfg.AppConfig.Host).
+			Bool("https", cfg.AppConfig.HTTPS).
+			Msg("HTTP server listening")
+		if cfg.AppConfig.HTTPS {
+			_ = htmlServer.server.ListenAndServeTLS("localhost.crt", "localhost.key")
 		} else {
-			htmlServer.server.ListenAndServe()
+			_ = htmlServer.server.ListenAndServe()
 		}
-		htmlServer.wg.Done()
 	}()
 
 	return &htmlServer
@@ -162,71 +147,71 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Debug("[request] - " + r.RequestURI)
-		// s.logger.Debug(r.RequestURI, log.Any("r", r))
-		// Call the next handler, which can be another middleware in the chain, or the final handler.
+		s.logger.Debug().Str("uri", r.RequestURI).Msg("request")
 		next.ServeHTTP(w, r)
 	})
 }
 
-// Stop turns off the HTML Server
-func (htmlServer *HTMLServer) StopHTTPServer() error {
-	// Create a context to attempt a graceful 5 second shutdown.
+// StopHTTPServer gracefully shuts down the HTTP server.
+func (h *HTMLServer) StopHTTPServer() error {
 	const timeout = 5 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	htmlServer.logger.Info("Stopping HTTP service...")
+	h.logger.Info().Msg("Stopping HTTP server...")
 
-	// Attempt the graceful shutdown by closing the listener
-	// and completing all inflight requests
-	if err := htmlServer.server.Shutdown(ctx); err != nil {
-		// Looks like we timed out on the graceful shutdown. Force close.
-		if err := htmlServer.server.Close(); err != nil {
-			htmlServer.logger.Error("error stopping HTML service", log.Error(err))
+	if err := h.server.Shutdown(ctx); err != nil {
+		if err := h.server.Close(); err != nil {
+			h.logger.Error().Err(err).Msg("force-close HTTP server")
 			return err
 		}
 	}
-
-	// Wait for the listener to report that it is closed.
-	htmlServer.wg.Wait()
-	htmlServer.logger.Info("HTTP service stopped")
+	h.wg.Wait()
+	h.logger.Info().Msg("HTTP server stopped")
 	return nil
 }
 
+// Server is the application handler with all dependencies injected.
 type Server struct {
-	db            db.DBer
-	logger        log.Logger
-	downloader    downloader.Downloader
-	templates     map[string]*template.Template
-	notifySubsMu  sync.Mutex
-	notifySubs    map[chan notifyEvent]struct{}
+	cfg          *config.Config
+	db           db.DBer
+	logger       zerolog.Logger
+	downloader   downloader.Downloader
+	player       *player.Player
+	templates    map[string]*template.Template
+	notifySubsMu sync.Mutex
+	notifySubs   map[chan notifyEvent]struct{}
 }
 
-func New(db db.DBer, l log.Logger) *Server {
+// New constructs a Server with all dependencies.
+func New(cfg *config.Config, database db.DBer, p *player.Player, l zerolog.Logger) *Server {
 	var dl downloader.Downloader
-	if viper.GetString("downloader") == "ytdl" {
-		dl = &downloader.YoutubeDownloader{}
-		l.Info("using 'ytdl' downloader")
-	} else {
-		cfg := &downloader.YoutubeDLConfig{
-			SongRoot:  viper.GetString("player.song_root"),
-			ThumbRoot: viper.GetString("player.thumb_root"),
+	if cfg.Downloader == "ytdl" {
+		dl = &downloader.YoutubeDownloader{
+			SongRoot:  cfg.Player.SongRoot,
+			ThumbRoot: cfg.Player.ThumbRoot,
 		}
-		ytdl := downloader.NewYoutubeDLDownloader(cfg)
+		l.Info().Msg("using 'ytdl' downloader")
+	} else {
+		dlCfg := &downloader.YoutubeDLConfig{
+			SongRoot:  cfg.Player.SongRoot,
+			ThumbRoot: cfg.Player.ThumbRoot,
+		}
+		ytdl := downloader.NewYoutubeDLDownloader(dlCfg)
 		if err := ytdl.EnsureAvailable(); err != nil {
-			l.Info("yt-dlp not in PATH; downloads will fail until installed", log.Error(err))
+			l.Warn().Err(err).Msg("yt-dlp and docker not found; downloads will be unavailable")
+		} else {
+			l.Info().Str("backend", ytdl.BackendDescription()).Msg("using 'youtube-dl' downloader")
 		}
 		dl = ytdl
-		l.Info("using 'youtube-dl' downloader")
 	}
 
-	l.Info("-> New server")
-
 	srv := &Server{
-		db:         db,
+		cfg:        cfg,
+		db:         database,
 		logger:     l,
 		downloader: dl,
+		player:     p,
 		notifySubs: make(map[chan notifyEvent]struct{}),
 	}
 	srv.templates = srv.loadTemplates()
@@ -236,41 +221,41 @@ func New(db db.DBer, l log.Logger) *Server {
 func (s *Server) loadTemplates() map[string]*template.Template {
 	layout := "templates/layout.html"
 	m := map[string]*template.Template{
-		"index":        template.Must(template.ParseFiles("templates/index.html", layout)),
-		"editSong":     template.Must(template.ParseFiles("templates/edit_song.html", layout)),
-		"newSong":      template.Must(template.New("base").ParseFiles("templates/new_song.html", layout)),
-		"playVideo":    template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles("templates/play_video.html", layout)),
-		"editRfid":     template.Must(template.ParseFiles("templates/edit_rfid.html", layout)),
-		"assignSong":   template.Must(template.ParseFiles("templates/assign_song.html", layout)),
-		"raw":          template.Must(template.ParseFiles("templates/raw.html", layout)),
-		"admin":        template.Must(template.ParseFiles("templates/admin.html", layout)),
+		"index":         template.Must(template.ParseFiles("templates/index.html", layout)),
+		"editSong":      template.Must(template.ParseFiles("templates/edit_song.html", layout)),
+		"newSong":       template.Must(template.New("base").ParseFiles("templates/new_song.html", layout)),
+		"playVideo":     template.Must(template.New("base").Funcs(template.FuncMap{}).ParseFiles("templates/play_video.html", layout)),
+		"editRfid":      template.Must(template.ParseFiles("templates/edit_rfid.html", layout)),
+		"assignSong":    template.Must(template.ParseFiles("templates/assign_song.html", layout)),
+		"raw":           template.Must(template.ParseFiles("templates/raw.html", layout)),
+		"admin":         template.Must(template.ParseFiles("templates/admin.html", layout)),
 		"adminEditSong": template.Must(template.ParseFiles("templates/editSong.html", layout)),
-		"player":       template.Must(template.New("base").ParseFiles("templates/player.html", layout)),
-		"print":        template.Must(template.New("base").ParseFiles("templates/print.html", layout)),
+		"player":        template.Must(template.New("base").ParseFiles("templates/player.html", layout)),
+		"print":         template.Must(template.New("base").ParseFiles("templates/print.html", layout)),
 	}
+	cfgMap := s.cfg.ToMap()
 	configFuncs := template.FuncMap{
 		"ConfigString": func(feature string) template.HTML {
-			v := viper.GetString(feature)
+			v := fmt.Sprint(cfgMap[feature])
 			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input id="%s" type="text" value="%s" name="%s">`, feature, feature, feature, v, feature))
 		},
 		"ConfigBool": func(feature string) template.HTML {
-			v := viper.GetBool(feature)
 			checked := ""
-			if v {
-				checked = `checked`
+			if v, ok := cfgMap[feature].(bool); ok && v {
+				checked = "checked"
 			}
 			return template.HTML(fmt.Sprintf(`<input type="checkbox" name="%s" %s><i class="form-icon"></i> %s`, feature, checked, feature))
 		},
 		"ConfigInt": func(feature string) template.HTML {
-			v := viper.GetInt(feature)
-			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input class="form-input" id="%s" type="number" placeholder="00" value="%d" name="%s">`, feature, feature, feature, v, feature))
+			v := fmt.Sprint(cfgMap[feature])
+			return template.HTML(fmt.Sprintf(`<label for="%s">%s</label><input class="form-input" id="%s" type="number" placeholder="00" value="%s" name="%s">`, feature, feature, feature, v, feature))
 		},
 	}
 	m["config"] = template.Must(template.New("base").Funcs(configFuncs).ParseFiles("templates/config.html", layout))
 	return m
 }
 
-// notifyBroadcast sends a notification to all connected SSE clients (e.g. Chrome on Android).
+// notifyBroadcast sends a notification to all connected SSE clients.
 func (s *Server) notifyBroadcast(title, body string) {
 	ev := notifyEvent{Title: title, Body: body}
 	s.notifySubsMu.Lock()
@@ -279,12 +264,11 @@ func (s *Server) notifyBroadcast(title, body string) {
 		select {
 		case ch <- ev:
 		default:
-			// client slow; skip
 		}
 	}
 }
 
-// EventsSSE streams server-sent events so the browser can show Web Notifications when downloads complete.
+// EventsSSE streams server-sent events for browser Web Notifications.
 func (s *Server) EventsSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -298,20 +282,22 @@ func (s *Server) EventsSSE(w http.ResponseWriter, r *http.Request) {
 	s.notifySubsMu.Lock()
 	s.notifySubs[ch] = struct{}{}
 	s.notifySubsMu.Unlock()
-	go func() {
-		<-r.Context().Done()
-		s.notifySubsMu.Lock()
-		delete(s.notifySubs, ch)
-		s.notifySubsMu.Unlock()
-		close(ch)
-	}()
+
 	defer func() {
 		s.notifySubsMu.Lock()
 		delete(s.notifySubs, ch)
 		s.notifySubsMu.Unlock()
 	}()
 
-	enc := json.NewEncoder(&streamWriter{w: w})
+	go func() {
+		<-r.Context().Done()
+		s.notifySubsMu.Lock()
+		delete(s.notifySubs, ch)
+		close(ch)
+		s.notifySubsMu.Unlock()
+	}()
+
+	enc := json.NewEncoder(w)
 	for ev := range ch {
 		fmt.Fprint(w, "event: notification\ndata: ")
 		_ = enc.Encode(ev)
@@ -322,38 +308,26 @@ func (s *Server) EventsSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// streamWriter wraps http.ResponseWriter so json.Encoder writes to the response.
-type streamWriter struct {
-	w http.ResponseWriter
-}
-
-func (s streamWriter) Write(p []byte) (n int, err error) {
-	return s.w.Write(p)
-}
-
-// Render a template, or server error.
+// render executes a template into a buffer then writes to w.
 func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Template, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	buf := new(bytes.Buffer)
 	if err := tpl.Execute(buf, data); err != nil {
-		s.logger.Error("template render error", log.Error(err), log.Any("data", data))
+		s.logger.Error().Err(err).Msg("template render error")
 		return
 	}
-	w.Write(buf.Bytes())
+	_, _ = w.Write(buf.Bytes())
 }
 
-// Push the given resource to the client.
 func (s *Server) push(w http.ResponseWriter, resource string) {
-	pusher, ok := w.(http.Pusher)
-	if ok {
-		err := pusher.Push(resource, nil)
-		if err != nil {
-			s.logger.Error("push error", log.Error(err))
+	if pusher, ok := w.(http.Pusher); ok {
+		if err := pusher.Push(resource, nil); err != nil {
+			s.logger.Error().Err(err).Msg("push error")
 		}
-		return
 	}
 }
 
+// Message is the shape of log messages POSTed from JavaScript clients.
 type Message struct {
 	Command string            `json:"command"`
 	Data    map[string]string `json:"data"`
@@ -362,36 +336,41 @@ type Message struct {
 
 func (s *Server) Log(w http.ResponseWriter, r *http.Request) {
 	msg := &Message{}
-	err := json.NewDecoder(r.Body).Decode(&msg)
-	if err != nil {
-		s.logger.Error("body parse error", log.Error(err))
+	if err := json.NewDecoder(r.Body).Decode(msg); err != nil {
+		s.logger.Error().Err(err).Msg("body parse error")
 		s.httpError(w, fmt.Errorf("log|%w", err), http.StatusInternalServerError)
 		return
 	}
 	if level, ok := msg.Data["level"]; ok {
 		switch level {
 		case "warn":
-			s.logger.Warn("log", log.Any("message", msg))
+			s.logger.Warn().Interface("message", msg).Msg("log")
 		case "err":
-			s.logger.Error("log", log.Any("message", msg))
+			s.logger.Error().Interface("message", msg).Msg("log")
 		default:
-			s.logger.Info("log", log.Any("message", msg))
+			s.logger.Info().Interface("message", msg).Msg("log")
 		}
 	} else {
-		s.logger.Info("log", log.Any("message", msg))
+		s.logger.Info().Interface("message", msg).Msg("log")
 	}
 }
 
-func (s *Server) Logs(w http.ResponseWriter, r *http.Request) {
-	flog, ok := s.logger.(*log.FileLogger)
-	if !ok {
-		fmt.Fprintf(w, "cannot convert logger")
-		return
-	}
-	dat, err := os.ReadFile(flog.Path)
+// Logs is intentionally removed — file-based log tailing is no longer supported.
+func (s *Server) Logs(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, "log tailing not available", http.StatusNotImplemented)
+}
+
+// readDir lists non-directory entries in dir, returning an empty slice on error.
+func readDir(dir string) []string {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		fmt.Fprintln(w, err.Error())
-		return
+		return nil
 	}
-	fmt.Fprint(w, string(dat))
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			out = append(out, e.Name())
+		}
+	}
+	return out
 }

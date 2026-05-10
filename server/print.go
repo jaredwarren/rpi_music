@@ -3,49 +3,46 @@ package server
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"net/http"
 	"os"
-
-	"github.com/gorilla/mux"
 )
 
 func (s *Server) PrintHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	songID := vars["song_id"]
-
+	songID := r.PathValue("song_id")
 	song, err := s.db.GetSong(songID)
 	if err != nil {
-		s.httpError(w, fmt.Errorf("PrintHandler|db.View|%w", err), http.StatusInternalServerError)
+		s.httpError(w, fmt.Errorf("PrintHandler|GetSong|%w", err), http.StatusInternalServerError)
 		return
 	}
 
-	thumbExists := true
-	if _, err := os.Stat(song.Thumbnail); errors.Is(err, os.ErrNotExist) {
-		thumbExists = false
+	thumbMissing := song.Thumbnail == ""
+	if !thumbMissing {
+		if _, err := os.Stat(song.Thumbnail); errors.Is(err, os.ErrNotExist) {
+			thumbMissing = true
+		}
 	}
 
-	if song.Thumbnail == "" || !thumbExists {
+	if thumbMissing {
 		v, err := s.downloader.GetVideo(song.URL)
 		if err != nil {
-			s.httpError(w, fmt.Errorf("PrintHandler|downloader.GetVideo|%w", err), http.StatusInternalServerError)
+			s.httpError(w, fmt.Errorf("PrintHandler|GetVideo|%w", err), http.StatusInternalServerError)
 			return
 		}
 		thumb, err := s.downloader.DownloadThumb(v)
 		if err != nil {
-			s.httpError(w, fmt.Errorf("PrintHandler|downloader.DownloadThumb|%w", err), http.StatusInternalServerError)
+			s.httpError(w, fmt.Errorf("PrintHandler|DownloadThumb|%w", err), http.StatusInternalServerError)
 			return
 		}
-		song.Thumbnail = thumb
-		err = s.db.UpdateSong(song)
-		if err != nil {
-			s.httpError(w, fmt.Errorf("PrintHandler|db.Update|%w", err), http.StatusInternalServerError)
+		song.Thumbnail = normalizeAssetPath(thumb, s.thumbAssetRoot())
+		if err := s.db.UpdateSong(song); err != nil {
+			s.httpError(w, fmt.Errorf("PrintHandler|UpdateSong|%w", err), http.StatusInternalServerError)
 			return
 		}
 	}
 
-	fullData := map[string]any{
+	s.render(w, r, s.templates["print"], map[string]any{
 		"Song":      song,
-		TemplateTag: s.getCSRFField(),
-	}
-	s.render(w, r, s.templates["print"], fullData)
+		TemplateTag: template.HTML(""),
+	})
 }

@@ -8,9 +8,19 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-const (
-	RFIDBucket = "RFIDBucket"
-)
+const RFIDBucket = "RFIDBucket"
+
+// RFIDStore is the read/write interface for RFID→song mappings.
+type RFIDStore interface {
+	GetRFIDSong(rfid string) (*model.RFIDSong, error)
+	GetSongRFID(songID string) (*model.RFIDSong, error)
+	AddRFIDSong(rfid, songID string) error
+	RemoveRFIDSong(rfid, songID string) error
+	DeleteRFID(id string) error
+	ListRFIDSongs() ([]*model.RFIDSong, error)
+	RFIDExists(rfid string) (bool, error)
+	DeleteSongFromRFID(songID string) error
+}
 
 func (s *SongDB) RFIDExists(rfid string) (bool, error) {
 	var exists bool

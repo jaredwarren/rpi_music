@@ -2,52 +2,40 @@ package server
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
+	"strconv"
 
-	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
-	"github.com/spf13/viper"
 )
 
 func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info("ConfigFormHandler")
-
-	song := model.NewSong()
-
-	fullData := map[string]any{
-		"Song":      song,
-		TemplateTag: s.getCSRFField(),
-	}
-	s.render(w, r, s.templates["config"], fullData)
+	s.render(w, r, s.templates["config"], map[string]any{
+		"Song":      model.NewSong(),
+		TemplateTag: template.HTML(""),
+	})
 }
 
 func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
-	if err != nil {
+	if err := r.ParseForm(); err != nil {
 		s.httpError(w, fmt.Errorf("ConfigHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
-	s.logger.Info("ConfigHandler", log.Any("form", r.PostForm))
+	s.logger.Info().Interface("form", r.PostForm).Msg("ConfigHandler")
 
-	beep := r.PostForm.Get("beep")
-	viper.Set("beep", beep == "on")
+	s.cfg.Beep = r.PostForm.Get("beep") == "on"
+	s.cfg.Player.Loop = r.PostForm.Get("player.loop") == "on"
+	s.cfg.AllowOverride = r.PostForm.Get("allow_override") == "on"
+	s.cfg.Startup.Play = r.PostForm.Get("startup.play") == "on"
 
-	loop := r.PostForm.Get("player.loop")
-	viper.Set("player.loop", loop == "on")
+	if v := r.PostForm.Get("player.volume"); v != "" {
+		if vol, err := strconv.Atoi(v); err == nil {
+			s.cfg.Player.Volume = vol
+		}
+	}
 
-	allow_override := r.PostForm.Get("allow_override")
-	viper.Set("allow_override", allow_override == "on")
-
-	volume := r.PostForm.Get("player.volume")
-	viper.Set("player.volume", volume)
-
-	startupSound := r.PostForm.Get("startup.play")
-	viper.Set("startup.play", startupSound == "on")
-
-	// Write
-	err = viper.WriteConfig()
-	if err != nil {
-		s.httpError(w, fmt.Errorf("ConfigHandler|WriteConfig|%w", err), http.StatusInternalServerError)
+	if err := s.cfg.Save(); err != nil {
+		s.httpError(w, fmt.Errorf("ConfigHandler|Save|%w", err), http.StatusInternalServerError)
 		return
 	}
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,7 @@ func TestDownloadVideo(t *testing.T) {
 	v := NewYoutubeDLDownloader(&YoutubeDLConfig{SongRoot: songDir})
 	ctx := context.Background()
 
-	f, vv, err := v.DownloadVideo(ctx, "https://youtu.be/ZJocdnMvTYs", nil)
+	f, vv, err := v.DownloadVideo(ctx, "https://youtu.be/ZJocdnMvTYs", log.NewNoOpLogger())
 
 	require.NoError(t, err)
 	require.NotNil(t, vv, "DownloadVideo returned nil video without error")
