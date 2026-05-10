@@ -107,7 +107,7 @@ func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request)
 
 	rfidSong, err := s.db.GetRFIDSong(rfid)
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
-		s.logger.Error().Err(err).Msg("AssignRFIDToSongHandler|GetRFIDSong")
+		s.logger.Error("AssignRFIDToSongHandler|GetRFIDSong", "err", err)
 		s.httpError(w, fmt.Errorf("RFIDExists error: %w", err), http.StatusInternalServerError)
 		return
 	}
@@ -117,7 +117,7 @@ func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := s.db.AddRFIDSong(rfid, song.ID); err != nil {
-		s.logger.Error().Err(err).Msg("AssignRFIDToSongHandler|AddRFIDSong")
+		s.logger.Error("AssignRFIDToSongHandler|AddRFIDSong", "err", err)
 		s.httpError(w, fmt.Errorf("AddRFIDSong: %w", err), http.StatusInternalServerError)
 		return
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -18,7 +19,6 @@ import (
 	"github.com/jaredwarren/rpi_music/player"
 	"github.com/jaredwarren/rpi_music/rfid"
 	"github.com/jaredwarren/rpi_music/server"
-	"github.com/rs/zerolog"
 )
 
 const DBPath = "my.db"
@@ -38,11 +38,11 @@ func main() {
 	})
 	logger := log.Get()
 
-	logger.Info().Msg("Starting RPi Music")
-	logger.Info().Msg("Config initialized")
+	logger.Info("Starting RPi Music")
+	logger.Info("Config initialized")
 
 	if runtime.GOOS == "darwin" {
-		logger.Info().Msg("Disabling RFID on macOS")
+		logger.Info("Disabling RFID on macOS")
 		cfg.RFIDEnabled = false
 	}
 
@@ -53,8 +53,8 @@ func main() {
 			AppHost:   cfg.Host,
 		}, logger)
 		if err != nil {
-			logger.Fatal().Err(err).Msg("localtunnel")
-			return
+			logger.Error("localtunnel", "err", err)
+			os.Exit(1)
 		}
 		defer t.Close()
 	}
@@ -72,10 +72,10 @@ func main() {
 	}, logger)
 	if err != nil {
 		if runtime.GOOS != "darwin" {
-			logger.Fatal().Err(err).Msg("player")
-			return
+			logger.Error("player", "err", err)
+			os.Exit(1)
 		}
-		logger.Warn().Err(err).Msg("ffplay not found — playback disabled; install via: brew install ffmpeg")
+		logger.Warn("ffplay not found — playback disabled; install via: brew install ffmpeg", "err", err)
 		trueBin, _ := exec.LookPath("true")
 		p, _ = player.New(player.Config{FFPlayBin: trueBin, Beep: false}, logger)
 	}
@@ -84,8 +84,8 @@ func main() {
 	// Database
 	sdb, err := db.NewSongDB(DBPath)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("db")
-		return
+		logger.Error("db", "err", err)
+		os.Exit(1)
 	}
 	defer sdb.Close()
 
@@ -104,8 +104,8 @@ func main() {
 			ReadUIDTimeout: cfg.RFID.ReadUIDTimeoutOrDefault(),
 		}, events, logger)
 		if err != nil {
-			logger.Fatal().Err(err).Msg("rfid")
-			return
+			logger.Error("rfid", "err", err)
+			os.Exit(1)
 		}
 		defer r.Close()
 		r.Start(ctx)
@@ -114,7 +114,7 @@ func main() {
 	}
 
 	// HTTP server
-	htmlServer := server.StartHTTPServer(&server.Config{
+	htmlServer, err := server.StartHTTPServer(&server.Config{
 		AppConfig:    cfg,
 		ReadTimeout:  350 * time.Second,
 		WriteTimeout: 350 * time.Second,
@@ -122,6 +122,10 @@ func main() {
 		Logger:       logger,
 		Player:       p,
 	})
+	if err != nil {
+		logger.Error("http server init", "err", err)
+		os.Exit(1)
+	}
 	defer htmlServer.StopHTTPServer()
 
 	// Startup sound
@@ -133,12 +137,12 @@ func main() {
 		go p.Beep()
 	}
 
-	logger.Info().Msg("Ready...")
+	logger.Info("Ready...")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	sig := <-sigChan
-	logger.Info().Str("signal", sig.String()).Msg("shutting down")
+	logger.Info("shutting down", "signal", sig.String())
 	signal.Reset(os.Interrupt, syscall.SIGTERM)
 }
 
@@ -153,7 +157,7 @@ func findFFPlay() string {
 }
 
 // runRFIDLoop consumes tag events and triggers playback.
-func runRFIDLoop(ctx context.Context, events <-chan rfid.Event, sdb db.DBer, p *player.Player, logger zerolog.Logger) {
+func runRFIDLoop(ctx context.Context, events <-chan rfid.Event, sdb db.DBer, p *player.Player, logger *slog.Logger) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -165,7 +169,7 @@ func runRFIDLoop(ctx context.Context, events <-chan rfid.Event, sdb db.DBer, p *
 			rs, err := sdb.GetRFIDSong(ev.UID)
 			if err != nil {
 				if !errors.Is(err, db.ErrNotFound) {
-					logger.Error().Err(err).Msg("rfid: GetRFIDSong")
+					logger.Error("rfid: GetRFIDSong", "err", err)
 				}
 				continue
 			}
@@ -174,12 +178,12 @@ func runRFIDLoop(ctx context.Context, events <-chan rfid.Event, sdb db.DBer, p *
 			}
 			song, err := sdb.GetSong(rs.Songs[0])
 			if err != nil {
-				logger.Error().Err(err).Msg("rfid: GetSong")
+				logger.Error("rfid: GetSong", "err", err)
 				continue
 			}
 			p.Beep()
 			if err := p.Play(song); err != nil {
-				logger.Error().Err(err).Msg("rfid: Play")
+				logger.Error("rfid: Play", "err", err)
 			}
 		}
 	}

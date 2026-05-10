@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"periph.io/x/conn/v3/gpio"
 	"periph.io/x/conn/v3/gpio/gpioreg"
 	"periph.io/x/conn/v3/spi"
@@ -81,11 +81,11 @@ type Reader struct {
 	cfg    Config
 	ready  atomic.Bool
 	events chan<- Event
-	logger zerolog.Logger
+	logger *slog.Logger
 }
 
 // New initialises the SPI bus and MFRC522 device.
-func New(cfg Config, events chan<- Event, logger zerolog.Logger) (*Reader, error) {
+func New(cfg Config, events chan<- Event, logger *slog.Logger) (*Reader, error) {
 	if _, err := host.Init(); err != nil {
 		return nil, fmt.Errorf("rfid: host init: %w", err)
 	}
@@ -116,7 +116,7 @@ func New(cfg Config, events chan<- Event, logger zerolog.Logger) (*Reader, error
 
 	r := &Reader{rfid: dev, port: port, cfg: cfg, events: events, logger: logger}
 	r.ready.Store(true)
-	logger.Info().Msg("RFID ready")
+	logger.Info("RFID ready")
 	return r, nil
 }
 
@@ -166,11 +166,11 @@ func (r *Reader) readID(ctx context.Context) string {
 			}
 			data, err := r.rfid.ReadUID(timeout)
 			if len(data) > 0 {
-				r.logger.Info().Str("hex", hex.EncodeToString(data)).Msg("ReadUID")
+				r.logger.Info("ReadUID", "hex", hex.EncodeToString(data))
 			}
 			if err != nil {
 				if !isTimeoutError(err) {
-					r.logger.Error().Err(err).Msg("ReadUID error")
+					r.logger.Error("ReadUID error", "err", err)
 				}
 				time.Sleep(poll)
 				continue
@@ -199,9 +199,9 @@ func isTimeoutError(err error) bool {
 func (r *Reader) Close() {
 	r.ready.Store(false)
 	if err := r.rfid.Halt(); err != nil {
-		r.logger.Error().Err(err).Msg("rfid halt")
+		r.logger.Error("rfid halt", "err", err)
 	}
 	if err := r.port.Close(); err != nil {
-		r.logger.Error().Err(err).Msg("rfid port close")
+		r.logger.Error("rfid port close", "err", err)
 	}
 }

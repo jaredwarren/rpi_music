@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/kkdai/youtube/v2"
-	"github.com/rs/zerolog"
 )
 
 // YoutubeDLDownloader downloads audio and thumbnails using the yt-dlp CLI (or Docker fallback).
@@ -45,9 +45,9 @@ func (d *YoutubeDLDownloader) GetVideo(videoID string) (*youtube.Video, error) {
 	return &youtube.Video{ID: videoID}, nil
 }
 
-func (d *YoutubeDLDownloader) DownloadVideo(ctx context.Context, videoID string, logger zerolog.Logger) (string, *youtube.Video, error) {
+func (d *YoutubeDLDownloader) DownloadVideo(ctx context.Context, videoID string, logger *slog.Logger) (string, *youtube.Video, error) {
 	videoID = normalizeVideoID(videoID)
-	logger.Info().Str("videoID", videoID).Msg("DownloadVideo")
+	logger.Info("DownloadVideo", "videoID", videoID)
 
 	cfg := d.config()
 	songRoot := cfg.songRoot()
@@ -65,7 +65,7 @@ func (d *YoutubeDLDownloader) DownloadVideo(ctx context.Context, videoID string,
 				video.Title = t
 			}
 		} else {
-			logger.Error().Err(err).Msg("getVideoInfo")
+			logger.Error("getVideoInfo", "err", err)
 		}
 	}()
 
@@ -79,27 +79,27 @@ func (d *YoutubeDLDownloader) DownloadVideo(ctx context.Context, videoID string,
 
 	if filename == "" {
 		if latest, err := getNewestFile(songRoot); err == nil {
-			logger.Info().Str("file", latest).Msg("getNewestFile fallback")
+			logger.Info("getNewestFile fallback", "file", latest)
 			filename = latest
 		} else {
 			if downloadErr != nil {
-				logger.Error().Err(downloadErr).Msg("downloadVideo")
+				logger.Error("downloadVideo", "err", downloadErr)
 			}
 			return "", nil, fmt.Errorf("could not get filename")
 		}
 		if downloadErr != nil {
-			logger.Warn().Err(downloadErr).Str("file", filename).Msg("downloadVideo parse failed; fallback file used")
+			logger.Warn("downloadVideo parse failed; fallback file used", "err", downloadErr, "file", filename)
 		}
 	}
 	if _, err := os.Stat(filename); err != nil {
-		logger.Error().Str("filename", filename).Err(err).Msg("os.Stat")
+		logger.Error("os.Stat", "filename", filename, "err", err)
 		return "", nil, err
 	}
 
 	return filename, video, nil
 }
 
-func (d *YoutubeDLDownloader) GetVideoFilename(ctx context.Context, videoID string, _ zerolog.Logger) (string, error) {
+func (d *YoutubeDLDownloader) GetVideoFilename(ctx context.Context, videoID string, _ *slog.Logger) (string, error) {
 	cfg := d.config()
 	absRoot := absPath(cfg.songRoot())
 	cmd := cfg.newDownloadCmd([]string{

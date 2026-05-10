@@ -21,7 +21,7 @@ func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		s.httpError(w, fmt.Errorf("ConfigHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
-	s.logger.Info().Interface("form", r.PostForm).Msg("ConfigHandler")
+	s.logger.Info("ConfigHandler", "form", r.PostForm)
 
 	s.cfg.Beep = r.PostForm.Get("beep") == "on"
 	s.cfg.Player.Loop = r.PostForm.Get("player.loop") == "on"

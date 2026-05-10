@@ -2,12 +2,12 @@ package player
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"sync"
 
 	"github.com/jaredwarren/rpi_music/model"
-	"github.com/rs/zerolog"
 )
 
 const ffplayBin = "ffplay"
@@ -34,7 +34,7 @@ func (c Config) binary() string {
 // Player manages a single ffplay subprocess.
 type Player struct {
 	cfg    Config
-	logger zerolog.Logger
+	logger *slog.Logger
 	mu     sync.Mutex
 	state  *playState
 }
@@ -45,7 +45,7 @@ type playState struct {
 }
 
 // New creates a Player, validates that ffplay exists, and ensures song/thumb directories exist.
-func New(cfg Config, logger zerolog.Logger) (*Player, error) {
+func New(cfg Config, logger *slog.Logger) (*Player, error) {
 	if _, err := exec.LookPath(cfg.binary()); err != nil {
 		return nil, fmt.Errorf("player: %s not found in PATH: %w", cfg.binary(), err)
 	}
@@ -70,12 +70,12 @@ func (p *Player) Play(song *model.Song) error {
 	defer p.mu.Unlock()
 
 	if p.state != nil && p.state.song != nil && p.state.song.FilePath == song.FilePath && !p.cfg.Restart {
-		p.logger.Info().Interface("song", song).Msg("selected song already playing")
+		p.logger.Info("selected song already playing", "song", song)
 		return nil
 	}
 	if p.state != nil {
 		if !p.cfg.AllowOverride {
-			p.logger.Info().Interface("song", song).Msg("another song already playing")
+			p.logger.Info("another song already playing", "song", song)
 			p.playSound("sounds/error.wav")
 			return nil
 		}
@@ -83,7 +83,7 @@ func (p *Player) Play(song *model.Song) error {
 	}
 
 	args := p.buildArgs(song.FilePath)
-	p.logger.Info().Interface("song", song).Interface("args", args).Msg("Play song")
+	p.logger.Info("Play song", "song", song, "args", args)
 
 	cmd := exec.Command(p.cfg.binary(), args...)
 	if err := cmd.Start(); err != nil {

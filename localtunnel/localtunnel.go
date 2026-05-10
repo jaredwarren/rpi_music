@@ -3,11 +3,10 @@ package localtunnel
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os/exec"
 	"strings"
-
-	"github.com/rs/zerolog"
 )
 
 // Config holds the settings needed to start a localtunnel process.
@@ -20,12 +19,12 @@ type Config struct {
 type Tunnel struct {
 	cmd    *exec.Cmd
 	done   chan error
-	logger zerolog.Logger
+	logger *slog.Logger
 }
 
 // New starts a localtunnel process and returns a Tunnel.
 // Returns an error if the lt binary is not found or the process fails to start.
-func New(cfg Config, logger zerolog.Logger) (*Tunnel, error) {
+func New(cfg Config, logger *slog.Logger) (*Tunnel, error) {
 	if _, err := exec.LookPath("lt"); err != nil {
 		return nil, fmt.Errorf("localtunnel: lt binary not found in PATH: %w", err)
 	}
@@ -54,10 +53,10 @@ func New(cfg Config, logger zerolog.Logger) (*Tunnel, error) {
 	go func() {
 		in := bufio.NewScanner(stdout)
 		for in.Scan() {
-			logger.Info().Msg(in.Text())
+			logger.Info(in.Text())
 		}
 		if err := in.Err(); err != nil {
-			logger.Error().Err(err).Msg("localtunnel stdout")
+			logger.Error("localtunnel stdout", "err", err)
 		}
 	}()
 

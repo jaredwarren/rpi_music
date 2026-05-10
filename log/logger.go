@@ -1,12 +1,12 @@
 package log
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
-
-	"github.com/rs/zerolog"
-	zlog "github.com/rs/zerolog/log"
+	"strings"
 )
 
 // Config mirrors WallCalendar's logger.Config.
@@ -25,21 +25,18 @@ func DefaultConfig() Config {
 }
 
 var logFile *os.File
+var globalLogger = NewNoOpLogger()
 
-// Init initialises the global zerolog logger. Call once at startup after
+// Init initialises the global slog logger. Call once at startup after
 // loading config. Subsequent calls re-initialise (useful in tests).
 func Init(cfg Config) {
-	level, err := zerolog.ParseLevel(cfg.Level)
-	if err != nil {
-		level = zerolog.InfoLevel
-	}
-	zerolog.SetGlobalLevel(level)
+	level := parseLevel(cfg.Level)
 
 	var writer io.Writer
 	if cfg.Format == "json" {
 		writer = os.Stdout
 	} else {
-		writer = zerolog.ConsoleWriter{Out: os.Stdout}
+		writer = os.Stdout
 	}
 
 	if cfg.File != "" {
@@ -55,22 +52,28 @@ func Init(cfg Config) {
 		}
 	}
 
-	zlog.Logger = zerolog.New(writer).With().Timestamp().Logger()
+	var handler slog.Handler
+	if strings.EqualFold(cfg.Format, "json") {
+		handler = slog.NewJSONHandler(writer, &slog.HandlerOptions{Level: level})
+	} else {
+		handler = newColorHandler(writer, &slog.HandlerOptions{Level: level})
+	}
+	globalLogger = slog.New(handler)
 }
 
 // Get returns the global logger.
-func Get() zerolog.Logger {
-	return zlog.Logger
+func Get() *slog.Logger {
+	return globalLogger
 }
 
 // Component returns the global logger with a "component" field pre-set.
-func Component(name string) zerolog.Logger {
-	return zlog.With().Str("component", name).Logger()
+func Component(name string) *slog.Logger {
+	return globalLogger.With("component", name)
 }
 
 // NewNoOpLogger returns a logger that discards all output.
-func NewNoOpLogger() zerolog.Logger {
-	return zerolog.New(io.Discard)
+func NewNoOpLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 // CloseLogFile closes the file log sink if one was opened by Init.
@@ -82,4 +85,66 @@ func CloseLogFile() error {
 		logFile = nil
 	}
 	return nil
+}
+
+func parseLevel(level string) slog.Level {
+	switch strings.ToLower(level) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+type colorHandler struct {
+	delegate slog.Handler
+}
+
+func newColorHandler(out io.Writer, opts *slog.HandlerOptions) slog.Handler {
+	localOpts := &slog.HandlerOptions{Level: slog.LevelInfo}
+	if opts != nil {
+		localOpts.Level = opts.Level
+	}
+	localOpts.ReplaceAttr = func(_ []string, a slog.Attr) slog.Attr {
+		if a.Key != slog.LevelKey {
+			return a
+		}
+		level, ok := a.Value.Any().(slog.Level)
+		if !ok {
+			return a
+		}
+		label := level.String()
+		switch {
+		case level <= slog.LevelDebug:
+			label = "\x1b[36m" + label + "\x1b[0m"
+		case level >= slog.LevelError:
+			label = "\x1b[31m" + label + "\x1b[0m"
+		case level >= slog.LevelWarn:
+			label = "\x1b[33m" + label + "\x1b[0m"
+		default:
+			label = "\x1b[32m" + label + "\x1b[0m"
+		}
+		return slog.String(a.Key, label)
+	}
+	return &colorHandler{delegate: slog.NewTextHandler(out, localOpts)}
+}
+
+func (h *colorHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.delegate.Enabled(ctx, level)
+}
+
+func (h *colorHandler) Handle(ctx context.Context, r slog.Record) error {
+	return h.delegate.Handle(ctx, r)
+}
+
+func (h *colorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &colorHandler{delegate: h.delegate.WithAttrs(attrs)}
+}
+
+func (h *colorHandler) WithGroup(name string) slog.Handler {
+	return &colorHandler{delegate: h.delegate.WithGroup(name)}
 }

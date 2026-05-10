@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"os"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
 	"github.com/jaredwarren/rpi_music/player"
-	"github.com/rs/zerolog"
 )
 
 // TemplateTag is the key used in template data maps for the CSRF field placeholder.
@@ -33,7 +33,7 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	Db           db.DBer
-	Logger       zerolog.Logger
+	Logger       *slog.Logger
 	Player       *player.Player
 }
 
@@ -41,14 +41,17 @@ type Config struct {
 type HTMLServer struct {
 	server *http.Server
 	wg     sync.WaitGroup
-	logger zerolog.Logger
+	logger *slog.Logger
 }
 
 // StartHTTPServer registers routes and starts listening.
-func StartHTTPServer(cfg *Config) *HTMLServer {
-	cfg.Logger.Info().Msg("StartHTTPServer")
+func StartHTTPServer(cfg *Config) (*HTMLServer, error) {
+	cfg.Logger.Info("StartHTTPServer")
 
-	s := New(cfg.AppConfig, cfg.Db, cfg.Player, cfg.Logger)
+	s, err := New(cfg.AppConfig, cfg.Db, cfg.Player, cfg.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("StartHTTPServer|New|%w", err)
+	}
 
 	mux := http.NewServeMux()
 
@@ -131,10 +134,7 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 	htmlServer.wg.Add(1)
 	go func() {
 		defer htmlServer.wg.Done()
-		cfg.Logger.Info().
-			Str("host", cfg.AppConfig.Host).
-			Bool("https", cfg.AppConfig.HTTPS).
-			Msg("HTTP server listening")
+		cfg.Logger.Info("HTTP server listening", "host", cfg.AppConfig.Host, "https", cfg.AppConfig.HTTPS)
 		if cfg.AppConfig.HTTPS {
 			_ = htmlServer.server.ListenAndServeTLS("localhost.crt", "localhost.key")
 		} else {
@@ -142,12 +142,12 @@ func StartHTTPServer(cfg *Config) *HTMLServer {
 		}
 	}()
 
-	return &htmlServer
+	return &htmlServer, nil
 }
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Debug().Str("uri", r.RequestURI).Msg("request")
+		s.logger.Debug("request", "uri", r.RequestURI)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -158,16 +158,16 @@ func (h *HTMLServer) StopHTTPServer() error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	h.logger.Info().Msg("Stopping HTTP server...")
+	h.logger.Info("Stopping HTTP server...")
 
 	if err := h.server.Shutdown(ctx); err != nil {
 		if err := h.server.Close(); err != nil {
-			h.logger.Error().Err(err).Msg("force-close HTTP server")
+			h.logger.Error("force-close HTTP server", "err", err)
 			return err
 		}
 	}
 	h.wg.Wait()
-	h.logger.Info().Msg("HTTP server stopped")
+	h.logger.Info("HTTP server stopped")
 	return nil
 }
 
@@ -175,7 +175,7 @@ func (h *HTMLServer) StopHTTPServer() error {
 type Server struct {
 	cfg          *config.Config
 	db           db.DBer
-	logger       zerolog.Logger
+	logger       *slog.Logger
 	downloader   downloader.Downloader
 	player       *player.Player
 	templates    map[string]*template.Template
@@ -184,14 +184,14 @@ type Server struct {
 }
 
 // New constructs a Server with all dependencies.
-func New(cfg *config.Config, database db.DBer, p *player.Player, l zerolog.Logger) *Server {
+func New(cfg *config.Config, database db.DBer, p *player.Player, l *slog.Logger) (*Server, error) {
 	var dl downloader.Downloader
 	if cfg.Downloader == "ytdl" {
 		dl = &downloader.YoutubeDownloader{
 			SongRoot:  cfg.Player.SongRoot,
 			ThumbRoot: cfg.Player.ThumbRoot,
 		}
-		l.Info().Msg("using 'ytdl' downloader")
+		l.Info("using 'ytdl' downloader")
 	} else {
 		dlCfg := &downloader.YoutubeDLConfig{
 			SongRoot:  cfg.Player.SongRoot,
@@ -199,10 +199,9 @@ func New(cfg *config.Config, database db.DBer, p *player.Player, l zerolog.Logge
 		}
 		ytdl := downloader.NewYoutubeDLDownloader(dlCfg)
 		if err := ytdl.EnsureAvailable(); err != nil {
-			l.Warn().Err(err).Msg("yt-dlp and docker not found; downloads will be unavailable")
-		} else {
-			l.Info().Str("backend", ytdl.BackendDescription()).Msg("using 'youtube-dl' downloader")
+			return nil, fmt.Errorf("server: youtube-dl backend unavailable: %w", err)
 		}
+		l.Info("using 'youtube-dl' downloader", "backend", ytdl.BackendDescription())
 		dl = ytdl
 	}
 
@@ -215,7 +214,7 @@ func New(cfg *config.Config, database db.DBer, p *player.Player, l zerolog.Logge
 		notifySubs: make(map[chan notifyEvent]struct{}),
 	}
 	srv.templates = srv.loadTemplates()
-	return srv
+	return srv, nil
 }
 
 func (s *Server) loadTemplates() map[string]*template.Template {
@@ -313,7 +312,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Te
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	buf := new(bytes.Buffer)
 	if err := tpl.Execute(buf, data); err != nil {
-		s.logger.Error().Err(err).Msg("template render error")
+		s.logger.Error("template render error", "err", err)
 		return
 	}
 	_, _ = w.Write(buf.Bytes())
@@ -322,7 +321,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Te
 func (s *Server) push(w http.ResponseWriter, resource string) {
 	if pusher, ok := w.(http.Pusher); ok {
 		if err := pusher.Push(resource, nil); err != nil {
-			s.logger.Error().Err(err).Msg("push error")
+			s.logger.Error("push error", "err", err)
 		}
 	}
 }
@@ -337,21 +336,21 @@ type Message struct {
 func (s *Server) Log(w http.ResponseWriter, r *http.Request) {
 	msg := &Message{}
 	if err := json.NewDecoder(r.Body).Decode(msg); err != nil {
-		s.logger.Error().Err(err).Msg("body parse error")
+		s.logger.Error("body parse error", "err", err)
 		s.httpError(w, fmt.Errorf("log|%w", err), http.StatusInternalServerError)
 		return
 	}
 	if level, ok := msg.Data["level"]; ok {
 		switch level {
 		case "warn":
-			s.logger.Warn().Interface("message", msg).Msg("log")
+			s.logger.Warn("log", "message", msg)
 		case "err":
-			s.logger.Error().Interface("message", msg).Msg("log")
+			s.logger.Error("log", "message", msg)
 		default:
-			s.logger.Info().Interface("message", msg).Msg("log")
+			s.logger.Info("log", "message", msg)
 		}
 	} else {
-		s.logger.Info().Interface("message", msg).Msg("log")
+		s.logger.Info("log", "message", msg)
 	}
 }
 

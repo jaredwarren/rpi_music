@@ -97,7 +97,7 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
-	s.logger.Info().Interface("song", s.player.GetPlaying()).Msg("current song")
+	s.logger.Info("current song", "song", s.player.GetPlaying())
 
 	songs, err := s.db.ListSongs()
 	if err != nil {
@@ -149,7 +149,7 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 // DownloadSong starts a background download and immediately redirects to /songs.
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		s.logger.Error().Err(err).Msg("DownloadSong|ParseForm")
+		s.logger.Error("DownloadSong|ParseForm", "err", err)
 		s.httpError(w, fmt.Errorf("DownloadSong|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
@@ -165,13 +165,13 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		song, err := s.downloadSong(context.Background(), rawURL, force)
 		if err != nil {
-			s.logger.Error().Err(err).Msg("downloadSong")
+			s.logger.Error("downloadSong", "err", err)
 			notifyDesktop("Download failed", err.Error())
 			s.notifyBroadcast("Download failed", err.Error())
 			return
 		}
 		if err := s.db.CreateSong(song); err != nil {
-			s.logger.Error().Err(err).Msg("CreateSong")
+			s.logger.Error("CreateSong", "err", err)
 			notifyDesktop("Download failed", err.Error())
 			s.notifyBroadcast("Download failed", err.Error())
 			return
@@ -186,7 +186,7 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		s.logger.Error().Err(err).Msg("NewSongHandler|ParseForm")
+		s.logger.Error("NewSongHandler|ParseForm", "err", err)
 		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
@@ -197,9 +197,9 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 
 	song, err := s.downloadSong(context.Background(), url, force)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("NewSongHandler|downloadSong")
+		s.logger.Error("NewSongHandler|downloadSong", "err", err)
 	} else if err := s.db.UpdateSong(song); err != nil {
-		s.logger.Error().Err(err).Msg("NewSongHandler|UpdateSong")
+		s.logger.Error("NewSongHandler|UpdateSong", "err", err)
 	} else {
 		s.tryAssignRFID(rfid, song.ID)
 	}
@@ -233,15 +233,15 @@ func (s *Server) tryAssignRFID(rfid, songID string) {
 	}
 	existing, err := s.db.GetRFIDSong(rfid)
 	if err != nil && !errors.Is(err, db.ErrNotFound) {
-		s.logger.Error().Err(err).Msg("tryAssignRFID|GetRFIDSong")
+		s.logger.Error("tryAssignRFID|GetRFIDSong", "err", err)
 		return
 	}
 	if existing != nil {
-		s.logger.Error().Interface("rfidSong", existing).Msg("tryAssignRFID|rfid already assigned")
+		s.logger.Error("tryAssignRFID|rfid already assigned", "rfidSong", existing)
 		return
 	}
 	if err := s.db.AddRFIDSong(rfid, songID); err != nil {
-		s.logger.Error().Err(err).Msg("tryAssignRFID|AddRFIDSong")
+		s.logger.Error("tryAssignRFID|AddRFIDSong", "err", err)
 	}
 }
 

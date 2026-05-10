@@ -2,23 +2,25 @@ package log
 
 import (
 	"context"
-
-	"github.com/rs/zerolog"
+	"log/slog"
 )
 
 type ContextKey string
 
 const ContextUserKey ContextKey = "logger"
 
-// WithLogger stores a zerolog.Logger in ctx.
-func WithLogger(ctx context.Context, l zerolog.Logger) context.Context {
+// WithLogger stores a slog.Logger in ctx.
+func WithLogger(ctx context.Context, l *slog.Logger) context.Context {
 	return context.WithValue(ctx, ContextUserKey, l)
 }
 
-// GetLogger retrieves a zerolog.Logger from ctx, falling back to the global logger.
-func GetLogger(ctx context.Context) zerolog.Logger {
-	if l, ok := ctx.Value(ContextUserKey).(zerolog.Logger); ok {
+// FromContext retrieves a slog.Logger from ctx, falling back to the global logger.
+func FromContext(ctx context.Context) *slog.Logger {
+	if l, ok := ctx.Value(ContextUserKey).(*slog.Logger); ok {
 		return l
 	}
 	return Get()
 }
+
+// GetLogger is kept as a compatibility alias for FromContext.
+func GetLogger(ctx context.Context) *slog.Logger { return FromContext(ctx) }

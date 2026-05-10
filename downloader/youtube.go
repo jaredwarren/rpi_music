@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 	"time"
 
 	"github.com/kkdai/youtube/v2"
-	"github.com/rs/zerolog"
 )
 
 const httpClientTimeout = 60 * time.Second
@@ -22,9 +22,9 @@ const httpClientTimeout = 60 * time.Second
 // Downloader is the interface for downloading YouTube audio and thumbnails.
 type Downloader interface {
 	GetVideo(videoID string) (*youtube.Video, error)
-	DownloadVideo(ctx context.Context, videoID string, logger zerolog.Logger) (string, *youtube.Video, error)
+	DownloadVideo(ctx context.Context, videoID string, logger *slog.Logger) (string, *youtube.Video, error)
 	DownloadThumb(video *youtube.Video) (string, error)
-	GetVideoFilename(ctx context.Context, videoID string, logger zerolog.Logger) (string, error)
+	GetVideoFilename(ctx context.Context, videoID string, logger *slog.Logger) (string, error)
 }
 
 // YoutubeDownloader downloads audio using the kkdai/youtube library (no external binary).
@@ -52,7 +52,7 @@ func (d *YoutubeDownloader) GetVideo(videoID string) (*youtube.Video, error) {
 	return client.GetVideo(videoID)
 }
 
-func (d *YoutubeDownloader) DownloadVideo(ctx context.Context, videoID string, logger zerolog.Logger) (string, *youtube.Video, error) {
+func (d *YoutubeDownloader) DownloadVideo(ctx context.Context, videoID string, logger *slog.Logger) (string, *youtube.Video, error) {
 	client := youtube.Client{}
 	video, err := client.GetVideo(videoID)
 	if err != nil {
@@ -71,7 +71,7 @@ func (d *YoutubeDownloader) DownloadVideo(ctx context.Context, videoID string, l
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
 	fileName := filepath.Join(d.songRoot(), fmt.Sprintf("%s%s", sEnc, ext))
 
-	logger.Info().Str("title", video.Title).Str("file", fileName).Msg("downloading video")
+	logger.Info("downloading video", "title", video.Title, "file", fileName)
 
 	if _, err := os.Stat(fileName); err != nil && errors.Is(err, os.ErrNotExist) {
 		stream, _, err := client.GetStream(video, &bestFormat)
@@ -94,7 +94,7 @@ func (d *YoutubeDownloader) DownloadVideo(ctx context.Context, videoID string, l
 	return fileName, video, nil
 }
 
-func (d *YoutubeDownloader) GetVideoFilename(_ context.Context, _ string, _ zerolog.Logger) (string, error) {
+func (d *YoutubeDownloader) GetVideoFilename(_ context.Context, _ string, _ *slog.Logger) (string, error) {
 	return "", nil
 }
 

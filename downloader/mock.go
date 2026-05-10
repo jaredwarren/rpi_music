@@ -2,9 +2,9 @@ package downloader
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/kkdai/youtube/v2"
-	"github.com/rs/zerolog"
 )
 
 type MockDownloader struct {
@@ -19,7 +19,7 @@ func (d *MockDownloader) GetVideo(videoID string) (*youtube.Video, error) {
 	return v, nil
 }
 
-func (d *MockDownloader) DownloadVideo(ctx context.Context, videoID string, _ zerolog.Logger) (string, *youtube.Video, error) {
+func (d *MockDownloader) DownloadVideo(ctx context.Context, videoID string, _ *slog.Logger) (string, *youtube.Video, error) {
 	v, ok := d.Response[videoID]
 	if !ok {
 		return "", nil, ErrNotFound
@@ -34,6 +34,6 @@ func (d *MockDownloader) DownloadThumb(video *youtube.Video) (string, error) {
 	return video.Thumbnails[0].URL, nil
 }
 
-func (d *MockDownloader) GetVideoFilename(ctx context.Context, _ string, _ zerolog.Logger) (string, error) {
+func (d *MockDownloader) GetVideoFilename(ctx context.Context, _ string, _ *slog.Logger) (string, error) {
 	return "", nil
 }
