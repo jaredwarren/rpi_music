@@ -31,7 +31,11 @@
     var songRows = [];
     window.addEventListener('DOMContentLoaded', () => {
         myModal = new bootstrap.Modal(document.getElementById("exampleModal"), {});
-        songRows = Array.from(document.querySelectorAll("#songs-table-body tr"));
+        songRows = Array.from(document.querySelectorAll("#songs-table-body tr")).map((row, index) => ({
+            row: row,
+            title: row.dataset.title || "",
+            index: index,
+        }));
 
         const songSearch = document.getElementById("songSearch");
         if (songSearch) {
@@ -142,28 +146,87 @@
         return false;
     }
 
-    function fuzzyMatch(text, query) {
-        const normalizedText = text.toLowerCase().replace(/\s+/g, "");
-        const normalizedQuery = query.toLowerCase().trim().replace(/\s+/g, "");
+    function normalizeForSearch(text) {
+        return text.toLowerCase().replace(/\s+/g, "");
+    }
+
+    function scoreSong(title, query) {
+        const normalizedTitle = normalizeForSearch(title);
+        const normalizedQuery = normalizeForSearch(query.trim());
         if (!normalizedQuery) {
-            return true;
+            return 0;
+        }
+
+        if (normalizedTitle === normalizedQuery) {
+            return 10000;
+        }
+        if (normalizedTitle.startsWith(normalizedQuery)) {
+            return 8000 - (normalizedTitle.length - normalizedQuery.length);
+        }
+
+        const substringIndex = normalizedTitle.indexOf(normalizedQuery);
+        if (substringIndex !== -1) {
+            return 6000 - (substringIndex * 5) - (normalizedTitle.length - normalizedQuery.length);
+        }
+
+        // Prevent very broad 1-2 character fuzzy matches from returning too many results.
+        if (normalizedQuery.length < 3) {
+            return -1;
         }
 
         let queryIndex = 0;
-        for (let i = 0; i < normalizedText.length && queryIndex < normalizedQuery.length; i++) {
-            if (normalizedText[i] === normalizedQuery[queryIndex]) {
+        let totalGaps = 0;
+        let lastMatch = -1;
+        for (let i = 0; i < normalizedTitle.length && queryIndex < normalizedQuery.length; i++) {
+            if (normalizedTitle[i] === normalizedQuery[queryIndex]) {
+                if (lastMatch >= 0) {
+                    totalGaps += i - lastMatch - 1;
+                }
+                lastMatch = i;
                 queryIndex++;
             }
         }
 
-        return queryIndex === normalizedQuery.length;
+        if (queryIndex !== normalizedQuery.length) {
+            return -1;
+        }
+
+        // Reject very loose subsequence matches.
+        if (totalGaps > normalizedQuery.length * 2) {
+            return -1;
+        }
+
+        return 3000 - (totalGaps * 20) - (normalizedTitle.length - normalizedQuery.length);
     }
 
     function filterSongs(query) {
+        const tbody = document.getElementById("songs-table-body");
+        if (!tbody) {
+            return;
+        }
+
+        const matches = [];
         for (let i = 0; i < songRows.length; i++) {
-            const row = songRows[i];
-            const title = row.dataset.title || "";
-            row.style.display = fuzzyMatch(title, query) ? "" : "none";
+            const song = songRows[i];
+            const score = scoreSong(song.title, query);
+            if (score >= 0) {
+                matches.push({ song, score });
+            }
+        }
+
+        if (query.trim()) {
+            matches.sort((a, b) => b.score - a.score || a.song.index - b.song.index);
+        } else {
+            matches.sort((a, b) => a.song.index - b.song.index);
+        }
+
+        for (let i = 0; i < songRows.length; i++) {
+            songRows[i].row.style.display = "none";
+        }
+        for (let i = 0; i < matches.length; i++) {
+            const row = matches[i].song.row;
+            row.style.display = "";
+            tbody.appendChild(row);
         }
     }
 </script>

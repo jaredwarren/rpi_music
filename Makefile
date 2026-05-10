@@ -26,7 +26,7 @@ check: fmt lint test
 
 # ── Raspberry Pi ─────────────────────────────────────────────────────────────
 
-.PHONY: pi-build pi-push pi-deploy pi-restart pi-logs pi-status pi-ssh
+.PHONY: pi-build pi-push pi-deploy pi-ensure-service pi-restart pi-logs pi-status pi-ssh
 
 ## Cross-compile for ARMv6 (Pi Zero / Pi 1)
 pi-build:
@@ -34,17 +34,25 @@ pi-build:
 
 ## Push all runtime files to the Pi (binary + assets, not song/thumb data)
 pi-push:
-	ssh $(PI_HOST) "mkdir -p $(PI_DIR)/config $(PI_DIR)/sounds $(PI_DIR)/public $(PI_DIR)/static $(PI_DIR)/templates"
-	scp $(BINARY)                  $(PI_HOST):$(PI_DIR)/$(BINARY)
-	scp -r templates               $(PI_HOST):$(PI_DIR)/
-	scp -r sounds                  $(PI_HOST):$(PI_DIR)/
-	scp -r public                  $(PI_HOST):$(PI_DIR)/
-	scp -r static                  $(PI_HOST):$(PI_DIR)/
-	scp localhost.crt localhost.key $(PI_HOST):$(PI_DIR)/
+	ssh $(PI_HOST) "sudo install -d -o pi -g pi $(PI_DIR) $(PI_DIR)/config $(PI_DIR)/sounds $(PI_DIR)/public $(PI_DIR)/static $(PI_DIR)/templates"
+	rsync -av --progress $(BINARY) $(PI_HOST):/tmp/$(BINARY)
+	ssh $(PI_HOST) "sudo install -o pi -g pi -m 0755 /tmp/$(BINARY) $(PI_DIR)/$(BINARY) && rm -f /tmp/$(BINARY)"
+	ssh $(PI_HOST) "rm -rf /tmp/rpi_music_deploy && mkdir -p /tmp/rpi_music_deploy"
+	rsync -av --progress templates sounds public static localhost.crt localhost.key $(PI_HOST):/tmp/rpi_music_deploy/
+	ssh $(PI_HOST) "sudo rm -rf $(PI_DIR)/templates $(PI_DIR)/sounds $(PI_DIR)/public $(PI_DIR)/static && sudo cp -R /tmp/rpi_music_deploy/templates /tmp/rpi_music_deploy/sounds /tmp/rpi_music_deploy/public /tmp/rpi_music_deploy/static $(PI_DIR)/ && sudo install -o pi -g pi -m 0644 /tmp/rpi_music_deploy/localhost.crt $(PI_DIR)/localhost.crt && sudo install -o pi -g pi -m 0644 /tmp/rpi_music_deploy/localhost.key $(PI_DIR)/localhost.key && sudo chown -R pi:pi $(PI_DIR)/templates $(PI_DIR)/sounds $(PI_DIR)/public $(PI_DIR)/static && rm -rf /tmp/rpi_music_deploy"
 	@echo "Push complete"
 
 ## Build for Pi, push everything, then restart the service
-pi-deploy: pi-build pi-push pi-restart
+pi-deploy: pi-build pi-push pi-ensure-service pi-restart
+
+## Ensure the systemd service unit exists on the Pi
+pi-ensure-service:
+	@if ssh $(PI_HOST) "sudo systemctl cat $(SERVICE)" >/dev/null 2>&1; then \
+		echo "Service unit exists"; \
+	else \
+		echo "Service unit missing; installing"; \
+		$(MAKE) pi-install-service; \
+	fi
 
 ## Restart the systemd service on the Pi
 pi-restart:
@@ -53,7 +61,7 @@ pi-restart:
 
 ## Install (or update) the systemd service unit file
 pi-install-service:
-	scp player.service $(PI_HOST):/tmp/$(SERVICE).service
+	rsync -av --progress player.service $(PI_HOST):/tmp/$(SERVICE).service
 	ssh $(PI_HOST) "sudo mv /tmp/$(SERVICE).service /etc/systemd/system/$(SERVICE).service && sudo systemctl daemon-reload && sudo systemctl enable $(SERVICE)"
 	@echo "Service installed and enabled"
 
