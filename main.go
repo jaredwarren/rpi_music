@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -89,9 +90,10 @@ func main() {
 	}
 	defer sdb.Close()
 
-	// RFID
+	// Application lifecycle context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	var wg sync.WaitGroup
 
 	if cfg.RFIDEnabled {
 		events := make(chan rfid.Event, 4)
@@ -110,12 +112,17 @@ func main() {
 		defer r.Close()
 		r.Start(ctx)
 
-		go runRFIDLoop(ctx, events, sdb, p, logger)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runRFIDLoop(ctx, events, sdb, p, logger)
+		}()
 	}
 
 	// HTTP server
 	htmlServer, err := server.StartHTTPServer(&server.Config{
 		AppConfig:    cfg,
+		Context:      ctx,
 		ReadTimeout:  350 * time.Second,
 		WriteTimeout: 350 * time.Second,
 		Db:           sdb,
@@ -126,8 +133,6 @@ func main() {
 		logger.Error("http server init", "err", err)
 		os.Exit(1)
 	}
-	defer htmlServer.StopHTTPServer()
-
 	// Startup sound
 	if cfg.Startup.Play && cfg.Startup.File != "" {
 		go func() {
@@ -144,6 +149,11 @@ func main() {
 	sig := <-sigChan
 	logger.Info("shutting down", "signal", sig.String())
 	signal.Reset(os.Interrupt, syscall.SIGTERM)
+	cancel()
+	if err := htmlServer.StopHTTPServer(); err != nil {
+		logger.Error("http server shutdown", "err", err)
+	}
+	wg.Wait()
 }
 
 // findFFPlay returns the path to ffplay, checking Homebrew locations on macOS.
@@ -184,6 +194,12 @@ func runRFIDLoop(ctx context.Context, events <-chan rfid.Event, sdb db.DBer, p *
 			p.Beep()
 			if err := p.Play(song); err != nil {
 				logger.Error("rfid: Play", "err", err)
+				continue
+			}
+
+			song.Plays++
+			if err := sdb.UpdateSong(song); err != nil {
+				logger.Error("rfid: UpdateSong", "err", err)
 			}
 		}
 	}

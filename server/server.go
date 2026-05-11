@@ -30,9 +30,10 @@ type notifyEvent struct {
 // Config provides the settings needed to start the HTTP server.
 type Config struct {
 	AppConfig    *config.Config
+	Context      context.Context
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
-	Db           db.DBer
+	Db           Store
 	Logger       *slog.Logger
 	Player       *player.Player
 }
@@ -42,14 +43,22 @@ type HTMLServer struct {
 	server *http.Server
 	wg     sync.WaitGroup
 	logger *slog.Logger
+	cancel context.CancelFunc
 }
 
 // StartHTTPServer registers routes and starts listening.
 func StartHTTPServer(cfg *Config) (*HTMLServer, error) {
 	cfg.Logger.Info("StartHTTPServer")
 
-	s, err := New(cfg.AppConfig, cfg.Db, cfg.Player, cfg.Logger)
+	serverCtx := cfg.Context
+	if serverCtx == nil {
+		serverCtx = context.Background()
+	}
+	serverCtx, cancel := context.WithCancel(serverCtx)
+
+	s, err := New(serverCtx, cfg.AppConfig, cfg.Db, cfg.Player, cfg.Logger)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("StartHTTPServer|New|%w", err)
 	}
 
@@ -122,6 +131,7 @@ func StartHTTPServer(cfg *Config) (*HTMLServer, error) {
 
 	htmlServer := HTMLServer{
 		logger: cfg.Logger,
+		cancel: cancel,
 		server: &http.Server{
 			Addr:           cfg.AppConfig.Host,
 			Handler:        handler,
@@ -157,6 +167,9 @@ func (h *HTMLServer) StopHTTPServer() error {
 	const timeout = 5 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	if h.cancel != nil {
+		h.cancel()
+	}
 
 	h.logger.Info("Stopping HTTP server...")
 
@@ -173,8 +186,9 @@ func (h *HTMLServer) StopHTTPServer() error {
 
 // Server is the application handler with all dependencies injected.
 type Server struct {
+	ctx          context.Context
 	cfg          *config.Config
-	db           db.DBer
+	db           Store
 	logger       *slog.Logger
 	downloader   downloader.Downloader
 	player       *player.Player
@@ -183,8 +197,14 @@ type Server struct {
 	notifySubs   map[chan notifyEvent]struct{}
 }
 
+// Store is the database contract server handlers require.
+type Store interface {
+	db.SongStore
+	db.RFIDStore
+}
+
 // New constructs a Server with all dependencies.
-func New(cfg *config.Config, database db.DBer, p *player.Player, l *slog.Logger) (*Server, error) {
+func New(ctx context.Context, cfg *config.Config, database Store, p *player.Player, l *slog.Logger) (*Server, error) {
 	var dl downloader.Downloader
 	if cfg.Downloader == "ytdl" {
 		dl = &downloader.YoutubeDownloader{
@@ -206,6 +226,7 @@ func New(cfg *config.Config, database db.DBer, p *player.Player, l *slog.Logger)
 	}
 
 	srv := &Server{
+		ctx:        ctx,
 		cfg:        cfg,
 		db:         database,
 		logger:     l,
@@ -286,23 +307,23 @@ func (s *Server) EventsSSE(w http.ResponseWriter, r *http.Request) {
 		s.notifySubsMu.Lock()
 		delete(s.notifySubs, ch)
 		s.notifySubsMu.Unlock()
-	}()
-
-	go func() {
-		<-r.Context().Done()
-		s.notifySubsMu.Lock()
-		delete(s.notifySubs, ch)
 		close(ch)
-		s.notifySubsMu.Unlock()
 	}()
 
 	enc := json.NewEncoder(w)
-	for ev := range ch {
-		fmt.Fprint(w, "event: notification\ndata: ")
-		_ = enc.Encode(ev)
-		fmt.Fprint(w, "\n")
-		if flusher, ok := w.(http.Flusher); ok {
-			flusher.Flush()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-s.ctx.Done():
+			return
+		case ev := <-ch:
+			fmt.Fprint(w, "event: notification\ndata: ")
+			_ = enc.Encode(ev)
+			fmt.Fprint(w, "\n")
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
 		}
 	}
 }

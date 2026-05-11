@@ -2,7 +2,6 @@ package player
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"sync"
@@ -11,6 +10,13 @@ import (
 )
 
 const ffplayBin = "ffplay"
+
+// Logger is the minimal logger contract player depends on.
+// Kept local to this package so callers can satisfy it with any implementation.
+type Logger interface {
+	Info(msg string, args ...any)
+	Error(msg string, args ...any)
+}
 
 // Config holds all tunable player settings.
 type Config struct {
@@ -34,7 +40,7 @@ func (c Config) binary() string {
 // Player manages a single ffplay subprocess.
 type Player struct {
 	cfg    Config
-	logger *slog.Logger
+	logger Logger
 	mu     sync.Mutex
 	state  *playState
 }
@@ -45,7 +51,7 @@ type playState struct {
 }
 
 // New creates a Player, validates that ffplay exists, and ensures song/thumb directories exist.
-func New(cfg Config, logger *slog.Logger) (*Player, error) {
+func New(cfg Config, logger Logger) (*Player, error) {
 	if _, err := exec.LookPath(cfg.binary()); err != nil {
 		return nil, fmt.Errorf("player: %s not found in PATH: %w", cfg.binary(), err)
 	}

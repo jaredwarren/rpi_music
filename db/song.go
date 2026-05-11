@@ -45,7 +45,7 @@ func NewSongDB(path string) (DBer, error) {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, name := range []string{SongBucketV2, RFIDBucket} {
+		for _, name := range []string{SongBucketV2, RFIDBucket, SongRFIDIndexBucket} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("create bucket %q: %w", name, err)
 			}

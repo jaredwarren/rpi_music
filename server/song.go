@@ -163,7 +163,7 @@ func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
 	rfid := normalizeRFID(r.PostForm.Get("rfid"))
 
 	go func() {
-		song, err := s.downloadSong(context.Background(), rawURL, force)
+		song, err := s.downloadSong(s.ctx, rawURL, force)
 		if err != nil {
 			s.logger.Error("downloadSong", "err", err)
 			notifyDesktop("Download failed", err.Error())
@@ -195,7 +195,7 @@ func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
 	force := r.PostForm.Get("force") != ""
 	rfid := normalizeRFID(r.PostForm.Get("rfid"))
 
-	song, err := s.downloadSong(context.Background(), url, force)
+	song, err := s.downloadSong(s.ctx, url, force)
 	if err != nil {
 		s.logger.Error("NewSongHandler|downloadSong", "err", err)
 	} else if err := s.db.UpdateSong(song); err != nil {
@@ -342,7 +342,7 @@ func (s *Server) RedownloadSongAssetsHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	if videoMissing {
-		filePath, video, err := s.downloader.DownloadVideo(context.Background(), song.URL, s.logger)
+		filePath, video, err := s.downloader.DownloadVideo(s.ctx, song.URL, s.logger)
 		if err != nil {
 			s.httpError(w, fmt.Errorf("RedownloadSongAssetsHandler|DownloadVideo|%w", err), http.StatusInternalServerError)
 			return

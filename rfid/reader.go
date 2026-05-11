@@ -129,9 +129,7 @@ func (r *Reader) Start(ctx context.Context) {
 				return
 			}
 
-			select {
-			case r.events <- Event{UID: uid}:
-			case <-ctx.Done():
+			if !r.emitEvent(ctx, uid) {
 				return
 			}
 
@@ -142,6 +140,15 @@ func (r *Reader) Start(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (r *Reader) emitEvent(ctx context.Context, uid string) bool {
+	select {
+	case r.events <- Event{UID: uid}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // readID blocks until one UID is read or ctx is cancelled.
