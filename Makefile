@@ -25,7 +25,7 @@ run:
 tools:
 	go install mvdan.cc/gofumpt@latest
 	go install golang.org/x/vuln/cmd/govulncheck@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
 test:
 	go test -count=1 ./...
@@ -57,7 +57,7 @@ $(GOVULNCHECK):
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 
 $(GOLANGCI_LINT):
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
 # ── Raspberry Pi ─────────────────────────────────────────────────────────────
 
