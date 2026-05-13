@@ -10,6 +10,7 @@ endif
 
 GOFUMPT    := $(GOBIN)/gofumpt
 GOVULNCHECK := $(GOBIN)/govulncheck
+GOLANGCI_LINT := $(GOBIN)/golangci-lint
 
 # ── Local ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ run:
 tools:
 	go install mvdan.cc/gofumpt@latest
 	go install golang.org/x/vuln/cmd/govulncheck@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 test:
 	go test -count=1 ./...
@@ -34,8 +36,8 @@ test-race:
 fmt: $(GOFUMPT)
 	$(GOFUMPT) -w .
 
-lint:
-	golangci-lint run ./...
+lint: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) run ./...
 
 vulncheck: $(GOVULNCHECK)
 	$(GOVULNCHECK) ./...
@@ -53,6 +55,9 @@ $(GOFUMPT):
 
 $(GOVULNCHECK):
 	go install golang.org/x/vuln/cmd/govulncheck@latest
+
+$(GOLANGCI_LINT):
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # ── Raspberry Pi ─────────────────────────────────────────────────────────────
 
