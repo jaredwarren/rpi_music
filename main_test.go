@@ -33,6 +33,13 @@ func TestRunRFIDLoopIncrementsPlaysAndUpdatesSong(t *testing.T) {
 		GetRFIDSongResult: &model.RFIDSong{RFID: "UID123", Songs: []string{"song-1"}},
 		GetSongResult:     song,
 	}
+	updateDone := make(chan struct{}, 1)
+	mockDB.OnUpdateSong = func(*model.Song) {
+		select {
+		case updateDone <- struct{}{}:
+		default:
+		}
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -42,9 +49,12 @@ func TestRunRFIDLoopIncrementsPlaysAndUpdatesSong(t *testing.T) {
 	events <- rfid.Event{UID: "UID123"}
 
 	require.Eventually(t, func() bool {
-		return len(mockDB.UpdateSongCalls) > 0
+		return mockDB.UpdateSongCallCount() > 0
 	}, time.Second, 10*time.Millisecond)
+	<-updateDone
 
-	require.Equal(t, 1, len(mockDB.UpdateSongCalls))
-	require.Equal(t, 3, mockDB.UpdateSongCalls[0].Plays)
+	require.Equal(t, 1, mockDB.UpdateSongCallCount())
+	last := mockDB.LastUpdateSongCall()
+	require.NotNil(t, last)
+	require.Equal(t, 3, last.Plays)
 }

@@ -112,7 +112,10 @@ func New(cfg Config, events chan<- Event, logger *slog.Logger) (*Reader, error) 
 		_ = port.Close()
 		return nil, fmt.Errorf("rfid: mfrc522 init: %w", err)
 	}
-	dev.SetAntennaGain(5)
+	if err := dev.SetAntennaGain(5); err != nil {
+		_ = port.Close()
+		return nil, fmt.Errorf("rfid: set antenna gain: %w", err)
+	}
 
 	r := &Reader{rfid: dev, port: port, cfg: cfg, events: events, logger: logger}
 	r.ready.Store(true)

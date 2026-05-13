@@ -83,7 +83,7 @@ func (d *YoutubeDownloader) DownloadVideo(ctx context.Context, videoID string, l
 		if err != nil {
 			return fileName, video, err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
 		if _, err = io.Copy(file, stream); err != nil {
 			return fileName, video, err
@@ -141,7 +141,7 @@ func downloadFile(URL, fileName string) error {
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status %d", response.StatusCode)
@@ -150,7 +150,7 @@ func downloadFile(URL, fileName string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	_, err = io.Copy(file, response.Body)
 	return err
 }

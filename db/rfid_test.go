@@ -9,7 +9,7 @@ import (
 
 func TestSongRFIDIndexLifecycle(t *testing.T) {
 	d := newTestDB(t)
-	defer d.Close()
+	t.Cleanup(func() { require.NoError(t, d.Close()) })
 
 	require.NoError(t, d.AddRFIDSong("rfid-1", "song-1"))
 
@@ -25,7 +25,7 @@ func TestSongRFIDIndexLifecycle(t *testing.T) {
 
 func TestDeleteRFIDRemovesSongIndexEntries(t *testing.T) {
 	d := newTestDB(t)
-	defer d.Close()
+	t.Cleanup(func() { require.NoError(t, d.Close()) })
 
 	require.NoError(t, d.AddRFIDSong("rfid-1", "song-1"))
 	require.NoError(t, d.AddRFIDSong("rfid-1", "song-2"))
@@ -40,7 +40,7 @@ func TestDeleteRFIDRemovesSongIndexEntries(t *testing.T) {
 
 func TestRemoveRFIDSongRemovesSongIndexEntry(t *testing.T) {
 	d := newTestDB(t)
-	defer d.Close()
+	t.Cleanup(func() { require.NoError(t, d.Close()) })
 
 	require.NoError(t, d.AddRFIDSong("rfid-1", "song-1"))
 	require.NoError(t, d.RemoveRFIDSong("rfid-1", "song-1"))

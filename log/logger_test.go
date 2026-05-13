@@ -78,10 +78,10 @@ func TestNoOpLogger(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	log.Init(log.Config{Level: "debug", Format: "json"})
-	logger := log.Get()
+	_ = log.Get()
 	// Should be a valid logger without panic
 	var buf bytes.Buffer
-	logger = slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	logger.Info("init test")
 	if !strings.Contains(buf.String(), "init test") {
 		t.Fatalf("expected 'init test' in output, got: %s", buf.String())

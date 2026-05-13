@@ -21,14 +21,6 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, tpl *template.Te
 	_, _ = w.Write(buf.Bytes())
 }
 
-func (s *Server) push(w http.ResponseWriter, resource string) {
-	if pusher, ok := w.(http.Pusher); ok {
-		if err := pusher.Push(resource, nil); err != nil {
-			s.logger.Error("push error", "err", err)
-		}
-	}
-}
-
 // Message is the shape of log messages POSTed from JavaScript clients.
 type Message struct {
 	Command string            `json:"command"`

@@ -28,7 +28,7 @@ func main() {
 	cfg, err := config.Load(config.ConfigFull)
 	if err != nil {
 		// Can't use logger yet — fall back to stderr.
-		os.Stderr.WriteString("load config: " + err.Error() + "\n")
+		_, _ = os.Stderr.WriteString("load config: " + err.Error() + "\n")
 		os.Exit(1)
 	}
 
@@ -57,7 +57,11 @@ func main() {
 			logger.Error("localtunnel", "err", err)
 			os.Exit(1)
 		}
-		defer t.Close()
+		defer func() {
+			if closeErr := t.Close(); closeErr != nil {
+				logger.Warn("localtunnel close", "err", closeErr)
+			}
+		}()
 	}
 
 	// Player
@@ -88,7 +92,11 @@ func main() {
 		logger.Error("db", "err", err)
 		os.Exit(1)
 	}
-	defer sdb.Close()
+	defer func() {
+		if closeErr := sdb.Close(); closeErr != nil {
+			logger.Warn("db close", "err", closeErr)
+		}
+	}()
 
 	// Application lifecycle context
 	ctx, cancel := context.WithCancel(context.Background())

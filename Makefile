@@ -5,7 +5,7 @@ BINARY     := pplayer
 
 # ── Local ────────────────────────────────────────────────────────────────────
 
-.PHONY: build run test fmt lint check
+.PHONY: build run tools test test-race fmt lint vulncheck tidy-check check check-ci
 
 build:
 	go build -o $(BINARY) .
@@ -13,16 +13,32 @@ build:
 run:
 	go run main.go 2>&1 | hl
 
+tools:
+	go install mvdan.cc/gofumpt@latest
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+
 test:
-	go test ./...
+	go test -count=1 ./...
+
+test-race:
+	go test -race -count=1 ./...
 
 fmt:
-	gofmt -w .
+	gofumpt -w .
 
 lint:
 	golangci-lint run ./...
 
-check: fmt lint test
+vulncheck:
+	govulncheck ./...
+
+tidy-check:
+	go mod tidy
+	git diff --exit-code go.mod go.sum
+
+check: fmt lint test-race
+
+check-ci: lint test-race tidy-check
 
 # ── Raspberry Pi ─────────────────────────────────────────────────────────────
 

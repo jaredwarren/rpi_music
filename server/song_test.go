@@ -106,7 +106,7 @@ func TestJSONHandler(t *testing.T) {
 			s.JSONHandler(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() { require.NoError(t, res.Body.Close()) }()
 			body, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 			assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
@@ -179,7 +179,7 @@ func TestJSONGetSongByRFID(t *testing.T) {
 			s.JSONGetSongByRFID(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() { require.NoError(t, res.Body.Close()) }()
 			body, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 			assert.Equal(t, "application/json", res.Header.Get("Content-Type"))
@@ -229,7 +229,7 @@ func TestDeleteSongHandler(t *testing.T) {
 			s.DeleteSongHandler(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() { require.NoError(t, res.Body.Close()) }()
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 			if tt.wantRedirect != "" {
 				assert.Equal(t, tt.wantRedirect, res.Header.Get("Location"))
@@ -293,7 +293,7 @@ func TestListSongHandler(t *testing.T) {
 			s.ListSongHandler(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() { require.NoError(t, res.Body.Close()) }()
 			body, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 
@@ -339,8 +339,10 @@ func TestDownloadSong(t *testing.T) {
 			wantRedirect: "/songs",
 			waitCreate:   true,
 			checkDB: func(t *testing.T, mock *db.MockDB) {
-				require.Len(t, mock.CreateSongCalls, 1)
-				assert.Equal(t, "Downloaded Song Title", mock.CreateSongCalls[0].Title)
+				require.Equal(t, 1, mock.CreateSongCallCount())
+				last := mock.LastCreateSongCall()
+				require.NotNil(t, last)
+				assert.Equal(t, "Downloaded Song Title", last.Title)
 			},
 		},
 		{
@@ -351,8 +353,10 @@ func TestDownloadSong(t *testing.T) {
 			wantRedirect: "/songs",
 			waitCreate:   true,
 			checkDB: func(t *testing.T, mock *db.MockDB) {
-				require.Len(t, mock.AddRFIDSongCalls, 1)
-				assert.Equal(t, "ABCDEF", mock.AddRFIDSongCalls[0].RFID)
+				require.Equal(t, 1, mock.AddRFIDSongCallCount())
+				last, ok := mock.LastAddRFIDSongCall()
+				require.True(t, ok)
+				assert.Equal(t, "ABCDEF", last.RFID)
 			},
 		},
 	}
@@ -364,9 +368,14 @@ func TestDownloadSong(t *testing.T) {
 				mockDB.GetRFIDSongErr = db.ErrNotFound
 			}
 			var createDone chan struct{}
+			var assignDone chan struct{}
 			if tt.waitCreate {
 				createDone = make(chan struct{})
 				mockDB.OnCreateSong = func(*model.Song) { close(createDone) }
+			}
+			if tt.form != nil && tt.form["rfid"] != "" {
+				assignDone = make(chan struct{})
+				mockDB.OnAddRFIDSong = func(string, string) { close(assignDone) }
 			}
 
 			s := &Server{db: mockDB, logger: log.NewNoOpLogger(), downloader: tt.dl}
@@ -385,13 +394,16 @@ func TestDownloadSong(t *testing.T) {
 			s.DownloadSong(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() { require.NoError(t, res.Body.Close()) }()
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 			if tt.wantRedirect != "" {
 				assert.Equal(t, tt.wantRedirect, res.Header.Get("Location"))
 			}
 			if tt.waitCreate {
 				<-createDone
+			}
+			if assignDone != nil {
+				<-assignDone
 			}
 			if tt.checkDB != nil {
 				tt.checkDB(t, mockDB)
@@ -449,7 +461,7 @@ func TestNewSongHandler(t *testing.T) {
 			s.NewSongHandler(w, req)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() { require.NoError(t, res.Body.Close()) }()
 			assert.Equal(t, tt.wantStatus, res.StatusCode)
 			assert.Equal(t, tt.wantRedirect, res.Header.Get("Location"))
 			if tt.checkCalls != nil {
@@ -488,7 +500,7 @@ func TestRedownloadSongAssetsHandler(t *testing.T) {
 		s.RedownloadSongAssetsHandler(w, req)
 
 		res := w.Result()
-		defer res.Body.Close()
+		defer func() { require.NoError(t, res.Body.Close()) }()
 		assert.Equal(t, http.StatusFound, res.StatusCode)
 		assert.Equal(t, "/songs", res.Header.Get("Location"))
 		assert.Len(t, mockDB.UpdateSongCalls, 0)
@@ -522,7 +534,7 @@ func TestRedownloadSongAssetsHandler(t *testing.T) {
 		s.RedownloadSongAssetsHandler(w, req)
 
 		res := w.Result()
-		defer res.Body.Close()
+		defer func() { require.NoError(t, res.Body.Close()) }()
 		assert.Equal(t, http.StatusFound, res.StatusCode)
 		assert.Equal(t, "/songs", res.Header.Get("Location"))
 		require.Len(t, mockDB.UpdateSongCalls, 1)
@@ -562,7 +574,7 @@ func TestRedownloadSongAssetsHandler(t *testing.T) {
 		s.RedownloadSongAssetsHandler(w, req)
 
 		res := w.Result()
-		defer res.Body.Close()
+		defer func() { require.NoError(t, res.Body.Close()) }()
 		assert.Equal(t, http.StatusFound, res.StatusCode)
 		assert.Equal(t, "/songs", res.Header.Get("Location"))
 		require.Len(t, mockDB.UpdateSongCalls, 1)

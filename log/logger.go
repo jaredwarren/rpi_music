@@ -39,7 +39,7 @@ func Init(cfg Config) {
 		}
 		f, err := os.OpenFile(cfg.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 		if err != nil {
-			os.Stderr.WriteString("warning: failed to open log file: " + err.Error() + "\n")
+			_, _ = os.Stderr.WriteString("warning: failed to open log file: " + err.Error() + "\n")
 		} else {
 			logFile = f
 			writer = io.MultiWriter(writer, f)

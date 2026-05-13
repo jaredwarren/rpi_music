@@ -55,9 +55,9 @@ func (s *Server) EventsSSE(w http.ResponseWriter, r *http.Request) {
 		case <-s.ctx.Done():
 			return
 		case ev := <-ch:
-			fmt.Fprint(w, "event: notification\ndata: ")
+			_, _ = fmt.Fprint(w, "event: notification\ndata: ")
 			_ = enc.Encode(ev)
-			fmt.Fprint(w, "\n")
+			_, _ = fmt.Fprint(w, "\n")
 			if flusher, ok := w.(http.Flusher); ok {
 				flusher.Flush()
 			}
