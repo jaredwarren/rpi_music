@@ -10,8 +10,14 @@ config/config.yml
 pplayer
 notes.md
 stuff/
+*.ipynb
+*coverage.out
 
 downloader/song_files/*
 
 airpl*
 flight*
+
+logs.out
+
+.cursor/

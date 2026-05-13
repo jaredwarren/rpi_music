@@ -1,224 +1,164 @@
 package downloader
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
-	"os/exec"
-	"regexp"
+	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
 )
 
-var (
-	logger = log.NewStdLogger(log.Debug)
-)
-
-type YoutubeDLDownloader struct{}
-
-func (d *YoutubeDLDownloader) GetVideo(videoID string) (*youtube.Video, error) {
-	return &youtube.Video{
-		ID: videoID,
-	}, nil
+// YoutubeDLDownloader downloads audio and thumbnails using the yt-dlp CLI (or Docker fallback).
+type YoutubeDLDownloader struct {
+	cfg *YoutubeDLConfig
 }
 
-func (d *YoutubeDLDownloader) DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error) {
-	var filename string
-	resp := &youtube.Video{
-		ID: videoID,
+// NewYoutubeDLDownloader returns a new yt-dlp-based downloader with the given config.
+func NewYoutubeDLDownloader(cfg *YoutubeDLConfig) *YoutubeDLDownloader {
+	return &YoutubeDLDownloader{cfg: cfg}
+}
+
+func (d *YoutubeDLDownloader) config() *YoutubeDLConfig {
+	if d.cfg == nil {
+		return &YoutubeDLConfig{}
 	}
+	return d.cfg
+}
 
-	// https://music.youtube.com/watch?v=4qwIhKfv_Dc&si=ST0cFoZIDwj5DKDI
-	videoID = strings.Replace(videoID, "//music.", "//", 1)
-	fmt.Printf("~~~~~~~~~~~~~~~\n clean url:%+v\n\n", videoID)
+// EnsureAvailable returns an error if neither yt-dlp nor Docker is available.
+// Sets the Docker fallback flag on the config if Docker will be used.
+func (d *YoutubeDLDownloader) EnsureAvailable() error {
+	return EnsureYtDlpAvailable(d.config())
+}
 
+// BackendDescription returns a string describing the active download backend.
+func (d *YoutubeDLDownloader) BackendDescription() string {
+	return d.config().BackendDescription()
+}
+
+func (d *YoutubeDLDownloader) GetVideo(videoID string) (*youtube.Video, error) {
+	return &youtube.Video{ID: videoID}, nil
+}
+
+func (d *YoutubeDLDownloader) DownloadVideo(ctx context.Context, videoID string, logger *slog.Logger) (string, *youtube.Video, error) {
+	videoID = normalizeVideoID(videoID)
+	logger.Info("DownloadVideo", "videoID", videoID)
+
+	cfg := d.config()
+	songRoot := cfg.songRoot()
+
+	video := &youtube.Video{ID: videoID}
+	var filename string
+	var downloadErr error
 	var wg sync.WaitGroup
 
-	// g := new(errgroup.Group)
-
-	// get title
 	wg.Add(1)
-	go func() error {
+	go func() {
 		defer wg.Done()
-		info, err := getVideoInfo(videoID)
-		if err == nil {
-			resp.Title = info["title"].(string)
+		if info, err := getVideoInfo(ctx, videoID, cfg); err == nil {
+			if t, ok := info["title"].(string); ok {
+				video.Title = t
+			}
+		} else {
+			logger.Error("getVideoInfo", "err", err)
 		}
-		fmt.Printf("~~~~~~~~~~~~~~~\n getVideoInfo err::\n%+v\n\n", err)
-		return err
 	}()
 
-	// // get filename
-	// wg.Add(1)
-	// go func() error {
-	// 	defer wg.Done()
-	// 	var err error
-	// 	filename, err = GetVideoFilename(videoID)
-	// 	fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename err:\n%+v\n\n", err)
-	// 	return err
-	// }()
-
-	// download video
 	wg.Add(1)
-	go func() error {
+	go func() {
 		defer wg.Done()
-		var err error
-		filename, err = downloadVideo(videoID)
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err::\n%+v\n\n", err)
-		return err
+		filename, downloadErr = downloadVideo(ctx, videoID, songRoot, cfg)
 	}()
 
 	wg.Wait()
 
-	// if err := g.Wait(); err != nil {
-	// 	fmt.Printf("~~~~~~~~~~~~~~~\n %+v\n\n", err)
-	// 	logger.Error("error downloading video", log.Error(err), log.Any("id", videoID))
-	// 	return "", nil, err
-	// }
-
-	// validate that file exists
 	if filename == "" {
-		return "", nil, fmt.Errorf("could not get filename")
+		if latest, err := getNewestFile(songRoot); err == nil {
+			logger.Info("getNewestFile fallback", "file", latest)
+			filename = latest
+		} else {
+			if downloadErr != nil {
+				logger.Error("downloadVideo", "err", downloadErr)
+			}
+			return "", nil, fmt.Errorf("could not get filename")
+		}
+		if downloadErr != nil {
+			logger.Warn("downloadVideo parse failed; fallback file used", "err", downloadErr, "file", filename)
+		}
 	}
 	if _, err := os.Stat(filename); err != nil {
+		logger.Error("os.Stat", "filename", filename, "err", err)
 		return "", nil, err
 	}
 
-	return filename, resp, nil
-
+	return filename, video, nil
 }
 
-func getVideoInfo(videoID string) (map[string]interface{}, error) {
-	args := []string{
-		"--ignore-errors",
-		"--no-call-home",
-		"--no-cache-dir",
-		"--skip-download",
-		"--restrict-filenames",
-		"-J",
-	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
+func (d *YoutubeDLDownloader) GetVideoFilename(ctx context.Context, videoID string, _ *slog.Logger) (string, error) {
+	cfg := d.config()
+	absRoot := absPath(cfg.songRoot())
+	cmd := cfg.newDownloadCmd([]string{
+		"--ignore-errors", "--no-call-home", "--no-cache-dir",
+		"--skip-download", "--restrict-filenames",
+		"-f", "bestaudio", "--get-filename",
+		"-o", filepath.Join(absRoot, "%(title)s-%(id)s.%(ext)s"),
+	}, absRoot)
+
+	out, err := cmd.ExecBContext(ctx, videoID)
 	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo err:\n%+v\n\n", err)
-		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo out:\n%+v\n\n", std)
-		return nil, fmt.Errorf("cmd err:%w", err)
+		return "", fmt.Errorf("GetVideoFilename: %w", err)
 	}
-	out := map[string]interface{}{}
-	err = json.Unmarshal(std, &out)
-	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n getvideoInfo out:\n%+v\n\n", std)
-		return nil, fmt.Errorf("json err:%w", err)
-	}
-	return out, nil
+	path := strings.TrimSpace(strings.Trim(string(out), `"`))
+	return cfg.translatePath(path, absRoot), nil
 }
 
-func GetVideoFilename(videoID string) (string, error) {
-	args := []string{
-		"--ignore-errors",
-		"--no-call-home",
-		"--no-cache-dir",
-		"--skip-download",
-		"--restrict-filenames",
-		"-f", "bestaudio",
-		"--get-filename",
-		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
-	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
-
-	fmt.Printf("~~~~~~~~~~~~~~~\n GetVideoFilename out:\n%+v\n\n", string(std))
-
-	// clean output
-	outStr := string(std)
-	outStr = strings.Trim(outStr, `"`)
-	outStr = strings.TrimSpace(outStr)
-	return outStr, err
+// normalizeVideoID rewrites music.youtube URLs to the standard youtube domain.
+func normalizeVideoID(videoID string) string {
+	return strings.Replace(videoID, "//music.", "//", 1)
 }
 
-func downloadVideo(videoID string) (string, error) {
-	args := []string{
-		"--no-call-home",
-		"--no-cache-dir",
-		"--restrict-filenames",
-		"--audio-quality", "0",
-		"-o", `song_files/%(title)s-%(id)s.%(ext)s`,
-	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
+var getVideoInfoArgs = []string{
+	"--ignore-errors", "--no-call-home", "--no-cache-dir",
+	"--skip-download", "--restrict-filenames", "-J",
+}
+
+func getVideoInfo(ctx context.Context, videoID string, cfg *YoutubeDLConfig) (map[string]any, error) {
+	cmd := cfg.newMetaCmd(getVideoInfoArgs)
+	out, err := cmd.ExecBContext(ctx, videoID)
 	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo err:\n%+v\n\n", err)
+		return nil, fmt.Errorf("getVideoInfo: %w", err)
+	}
+	var info map[string]any
+	if err := json.Unmarshal(out, &info); err != nil {
+		return nil, fmt.Errorf("getVideoInfo json: %w", err)
+	}
+	return info, nil
+}
+
+func getNewestFile(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
 		return "", err
 	}
-	fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideo out:\n%+v\n\n", string(std))
-
-	//youtube-dl --ignore-errors --no-call-home --no-cache-dir --restrict-filenames -f bestaudio -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
-	// yt-dlp -o "song_files/%(title)s-%(id)s.%(ext)s" "https://youtu.be/7s1UKDdB0OU?si=jpi0XTovMtQ1F44Z"
-
-	// [Merger] Merging formats into "song_files/The_Bare_Necessities_from_The_Jungle_Book-08NlhjpVFsU.mp4"
-
-	matches := matchRegex.FindStringSubmatch(string(std))
-	if len(matches) > 1 {
-		filename := matches[1]
-		if filename != "" {
-			return "song_files/" + filename, nil
+	var newestName string
+	var newestTime int64
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if t := info.ModTime().Unix(); t > newestTime {
+			newestTime = t
+			newestName = info.Name()
 		}
 	}
-
-	return "", fmt.Errorf("couldn't find file")
-}
-
-var matchRegex = regexp.MustCompile(`\[Merger\] Merging formats into "song_files/(.+?)"`)
-
-func (d *YoutubeDLDownloader) DownloadThumb(video *youtube.Video) (string, error) {
-	// download video
-	filename, err := downloadVideoThumb(video.ID)
-	if err != nil {
-		return "", fmt.Errorf("download video thumb error: %w", err)
+	if newestName == "" {
+		return "", fmt.Errorf("no files in %s", dir)
 	}
-
-	// validate that file exists
-	if filename == "" {
-		return "", fmt.Errorf("could not get thumb filename")
-	}
-	if _, err := os.Stat(filename); err != nil {
-		return "", fmt.Errorf("os.stat error: %w", err)
-	}
-
-	return filename, nil
-}
-
-func downloadVideoThumb(videoID string) (string, error) {
-	args := []string{
-		"--write-thumbnail",
-		"--ignore-errors",
-		"--no-call-home",
-		"--no-cache-dir",
-		"--skip-download",
-		"--restrict-filenames",
-		"-o", `thumb_files/%(title)s-%(id)s`,
-	}
-	args = append(args, videoID)
-	cmd := exec.Command("yt-dlp", args...)
-	std, err := cmd.Output()
-	if err != nil {
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideoThumb err:\n%+v\n\n", err)
-		fmt.Printf("~~~~~~~~~~~~~~~\n downloadVideoThumb out:\n%+v\n\n", std)
-		return "", err
-	}
-
-	// parse output because I can't find a better way to get thumb name
-	outStr := string(std)
-	var thumbRegex = regexp.MustCompile(`Writing .+? to: (.+?)(\n|$)`)
-	result := thumbRegex.FindStringSubmatch(outStr)
-	if len(result) == 0 {
-		return "", fmt.Errorf("invalid results from download:%s", outStr)
-	}
-	return result[1], err
+	return filepath.Join(dir, newestName), nil
 }

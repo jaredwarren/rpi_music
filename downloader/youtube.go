@@ -1,61 +1,81 @@
 package downloader
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
-	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
-	"github.com/spf13/viper"
 )
 
+const httpClientTimeout = 60 * time.Second
+
+// Downloader is the interface for downloading YouTube audio and thumbnails.
 type Downloader interface {
 	GetVideo(videoID string) (*youtube.Video, error)
-	DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error)
+	DownloadVideo(ctx context.Context, videoID string, logger *slog.Logger) (string, *youtube.Video, error)
 	DownloadThumb(video *youtube.Video) (string, error)
+	GetVideoFilename(ctx context.Context, videoID string, logger *slog.Logger) (string, error)
 }
 
-type YoutubeDownloader struct{}
+// YoutubeDownloader downloads audio using the kkdai/youtube library (no external binary).
+type YoutubeDownloader struct {
+	SongRoot  string // directory for downloaded audio files
+	ThumbRoot string // directory for downloaded thumbnails
+}
+
+func (d *YoutubeDownloader) songRoot() string {
+	if d.SongRoot != "" {
+		return d.SongRoot
+	}
+	return defaultSongDir
+}
+
+func (d *YoutubeDownloader) thumbRoot() string {
+	if d.ThumbRoot != "" {
+		return d.ThumbRoot
+	}
+	return defaultThumbDir
+}
 
 func (d *YoutubeDownloader) GetVideo(videoID string) (*youtube.Video, error) {
-	client := youtube.Client{
-		Debug: true,
-	}
+	client := youtube.Client{Debug: true}
 	return client.GetVideo(videoID)
 }
 
-func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error) {
+func (d *YoutubeDownloader) DownloadVideo(ctx context.Context, videoID string, logger *slog.Logger) (string, *youtube.Video, error) {
 	client := youtube.Client{}
 	video, err := client.GetVideo(videoID)
 	if err != nil {
 		return "", video, err
 	}
 
-	formats := video.Formats.WithAudioChannels() // only get videos with audio
-
-	// I think this sorts best > worst
+	formats := video.Formats.WithAudioChannels()
+	if len(formats) == 0 {
+		return "", video, ErrNoAudioFormats
+	}
 	sort.Slice(formats, func(i, j int) bool {
 		return formats[i].AverageBitrate > formats[j].AverageBitrate
 	})
-
 	bestFormat := formats[0]
 	ext := getExt(bestFormat.MimeType)
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
-	fileName := filepath.Join(viper.GetString("player.song_root"), fmt.Sprintf("%s%s", sEnc, ext))
+	fileName := filepath.Join(d.songRoot(), fmt.Sprintf("%s%s", sEnc, ext))
 
-	logger.Info("downloading video", log.Any("title", video.Title), log.Any("file", fileName))
+	logger.Info("downloading video", "title", video.Title, "file", fileName)
 
-	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(fileName); err != nil && errors.Is(err, os.ErrNotExist) {
 		stream, _, err := client.GetStream(video, &bestFormat)
 		if err != nil {
-			logger.Error("GetStream error", log.Any("title", video.Title), log.Error(err), log.Any("format", bestFormat))
 			return fileName, video, err
 		}
 
@@ -63,18 +83,19 @@ func (d *YoutubeDownloader) DownloadVideo(videoID string, logger log.Logger) (st
 		if err != nil {
 			return fileName, video, err
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 
-		_, err = io.Copy(file, stream)
-		if err != nil {
+		if _, err = io.Copy(file, stream); err != nil {
 			return fileName, video, err
 		}
 	} else if err != nil {
 		return fileName, video, err
-	} else {
-		logger.Warn("file already exists", log.Any("title", video.Title), log.Any("file", fileName))
 	}
 	return fileName, video, nil
+}
+
+func (d *YoutubeDownloader) GetVideoFilename(_ context.Context, _ string, _ *slog.Logger) (string, error) {
+	return "", nil
 }
 
 func getExt(mimeType string) string {
@@ -85,7 +106,7 @@ func getExt(mimeType string) string {
 	if strings.Contains(ls, "video/webm") {
 		return ".webm"
 	}
-	return "" //
+	return ""
 }
 
 func (d *YoutubeDownloader) DownloadThumb(video *youtube.Video) (string, error) {
@@ -93,7 +114,6 @@ func (d *YoutubeDownloader) DownloadThumb(video *youtube.Video) (string, error) 
 		return "", fmt.Errorf("no thumbs for video")
 	}
 
-	// find biggest
 	thumb := video.Thumbnails[0]
 	for _, t := range video.Thumbnails {
 		if t.Width > thumb.Width {
@@ -102,44 +122,35 @@ func (d *YoutubeDownloader) DownloadThumb(video *youtube.Video) (string, error) 
 	}
 
 	fileURL := thumb.URL
-
-	// clean up `.../hqdefault.jpg?sqp=-oaymwEj...`
-	ext := filepath.Ext(fileURL)
-	ext = strings.Split(ext, "?")[0]
+	ext := strings.Split(filepath.Ext(fileURL), "?")[0]
 	sEnc := base64.StdEncoding.EncodeToString([]byte(video.Title))
-	fileName := filepath.Join(viper.GetString("player.thumb_root"), fmt.Sprintf("%s%s", sEnc, ext))
+	fileName := filepath.Join(d.thumbRoot(), fmt.Sprintf("%s%s", sEnc, ext))
 
-	err := downloadFile(fileURL, fileName)
-	if err != nil {
-		return "", err
-	}
-
-	return fileName, nil
+	return fileName, downloadFile(fileURL, fileName)
 }
 
 func downloadFile(URL, fileName string) error {
-	//Get the response bytes from the url
-	response, err := http.Get(URL)
+	ctx, cancel := context.WithTimeout(context.Background(), httpClientTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, URL, nil)
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
-
-	if response.StatusCode != 200 {
-		return errors.New("Received non 200 response code")
+	client := &http.Client{Timeout: httpClientTimeout}
+	response, err := client.Do(req)
+	if err != nil {
+		return err
 	}
-	//Create a empty file
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status %d", response.StatusCode)
+	}
 	file, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-
-	//Write the bytes to the fiel
+	defer func() { _ = file.Close() }()
 	_, err = io.Copy(file, response.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

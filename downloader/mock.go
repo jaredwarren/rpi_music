@@ -1,9 +1,9 @@
 package downloader
 
 import (
-	"fmt"
+	"context"
+	"log/slog"
 
-	"github.com/jaredwarren/rpi_music/log"
 	"github.com/kkdai/youtube/v2"
 )
 
@@ -14,22 +14,26 @@ type MockDownloader struct {
 func (d *MockDownloader) GetVideo(videoID string) (*youtube.Video, error) {
 	v, ok := d.Response[videoID]
 	if !ok {
-		return nil, fmt.Errorf("not found")
+		return nil, ErrNotFound
 	}
 	return v, nil
 }
 
-func (d *MockDownloader) DownloadVideo(videoID string, logger log.Logger) (string, *youtube.Video, error) {
+func (d *MockDownloader) DownloadVideo(ctx context.Context, videoID string, _ *slog.Logger) (string, *youtube.Video, error) {
 	v, ok := d.Response[videoID]
 	if !ok {
-		return "", nil, fmt.Errorf("not found")
+		return "", nil, ErrNotFound
 	}
 	return v.Title, v, nil
 }
 
 func (d *MockDownloader) DownloadThumb(video *youtube.Video) (string, error) {
 	if len(video.Thumbnails) == 0 {
-		return "", fmt.Errorf("thumb not found")
+		return "", ErrNotFound
 	}
 	return video.Thumbnails[0].URL, nil
+}
+
+func (d *MockDownloader) GetVideoFilename(ctx context.Context, _ string, _ *slog.Logger) (string, error) {
+	return "", nil
 }

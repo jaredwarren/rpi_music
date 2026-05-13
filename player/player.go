@@ -4,163 +4,166 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
-	"time"
 
-	"github.com/jaredwarren/rpi_music/log"
 	"github.com/jaredwarren/rpi_music/model"
-	"github.com/spf13/viper"
 )
 
-var (
-	p      *Player
-	logger log.Logger
-)
+const ffplayBin = "ffplay"
 
-func InitPlayer(l log.Logger) {
-	logger = l
-	if _, err := os.Stat(viper.GetString("player.song_root")); os.IsNotExist(err) {
-		err := os.Mkdir(viper.GetString("player.song_root"), os.ModeDir)
-		if err != nil {
-			logger.Panic("error creating song_file dir", log.Error(err))
-		}
-	}
-
-	if _, err := os.Stat(viper.GetString("player.thumb_root")); os.IsNotExist(err) {
-		err := os.Mkdir(viper.GetString("player.thumb_root"), os.ModeDir)
-		if err != nil {
-			logger.Panic("error creating thumb_file dir", log.Error(err))
-		}
-	}
-
-	// TODO: check if ffplay is setup
+// Logger is the minimal logger contract player depends on.
+// Kept local to this package so callers can satisfy it with any implementation.
+type Logger interface {
+	Info(msg string, args ...any)
+	Error(msg string, args ...any)
 }
 
+// Config holds all tunable player settings.
+type Config struct {
+	SongRoot      string
+	ThumbRoot     string
+	Volume        int
+	Loop          bool
+	AllowOverride bool
+	Restart       bool
+	Beep          bool
+	FFPlayBin     string // defaults to "ffplay"
+}
+
+func (c Config) binary() string {
+	if c.FFPlayBin != "" {
+		return c.FFPlayBin
+	}
+	return ffplayBin
+}
+
+// Player manages a single ffplay subprocess.
 type Player struct {
-	Playing     bool
-	currentSong *model.Song
-	cmd         *exec.Cmd
-	mu          sync.Mutex
+	cfg    Config
+	logger Logger
+	mu     sync.Mutex
+	state  *playState
 }
 
-func GetPlayer() *Player {
-	if p == nil {
-		p = &Player{}
-	}
-	return p
+type playState struct {
+	song *model.Song
+	cmd  *exec.Cmd
 }
 
-func Play(song *model.Song) error {
-	if song.FilePath == "" {
-		return fmt.Errorf("invalid file:%+v", song)
+// New creates a Player, validates that ffplay exists, and ensures song/thumb directories exist.
+func New(cfg Config, logger Logger) (*Player, error) {
+	if _, err := exec.LookPath(cfg.binary()); err != nil {
+		return nil, fmt.Errorf("player: %s not found in PATH: %w", cfg.binary(), err)
+	}
+	for _, dir := range []string{cfg.SongRoot, cfg.ThumbRoot} {
+		if dir == "" {
+			continue
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("player: create directory %s: %w", dir, err)
+		}
+	}
+	return &Player{cfg: cfg, logger: logger}, nil
+}
+
+// Play starts playing song. If a song is already playing, behaviour depends on cfg.AllowOverride.
+func (p *Player) Play(song *model.Song) error {
+	if song == nil || song.FilePath == "" {
+		return fmt.Errorf("song file path is empty")
 	}
 
-	cp := GetPlayer()
-	if cp.Playing {
-		restart := viper.GetBool("restart")
-		if cp.currentSong.FilePath == song.FilePath && !restart {
-			logger.Info("selected song already playing", log.Any("song", song))
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.state != nil && p.state.song != nil && p.state.song.FilePath == song.FilePath && !p.cfg.Restart {
+		p.logger.Info("selected song already playing", "song", song)
+		return nil
+	}
+	if p.state != nil {
+		if !p.cfg.AllowOverride {
+			p.logger.Info("another song already playing", "song", song)
+			p.playSound("sounds/error.wav")
 			return nil
 		}
-		if !viper.GetBool("allow_override") {
-			logger.Info("another song already playing", log.Any("song", song))
-			// TODO: if queue enabled add sont to queue, and don't error
-			Error()
-			return nil
-		}
-		Stop()
+		p.killLocked()
 	}
 
-	args := []string{
-		"-nodisp",
-		"-autoexit", // exit after song finishes, otherwise command won't stop
-	}
-	if viper.GetBool("player.loop") {
-		// args = append(args, "-loop", "0")
-		// TODO: fix this so if config changes loop stops
-		// alos need override for things like startup sound
-	}
-	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
-	args = append(args, song.FilePath)
+	args := p.buildArgs(song.FilePath)
+	p.logger.Info("Play song", "song", song, "args", args)
 
-	cp.mu.Lock()
-	defer cp.mu.Unlock()
-
-	logger.Info("Play song", log.Any("song", song), log.Any("args", args))
-	cmd := exec.Command("ffplay", args...)
-	cp.cmd = cmd
-	err := cmd.Start()
-	if err != nil {
-		return fmt.Errorf("[ERROR] start error: %w", err)
+	cmd := exec.Command(p.cfg.binary(), args...)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start ffplay: %w", err)
 	}
+
+	st := &playState{song: song, cmd: cmd}
+	p.state = st
+
 	go func() {
-		cp.mu.Lock()
-		defer cp.mu.Unlock()
-		cmd.Wait()
-		Stop()
+		_ = cmd.Wait()
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		if p.state == st {
+			p.state = nil
+		}
 	}()
-
-	cp.Playing = true
-	cp.currentSong = song
 
 	return nil
 }
 
-func Stop() {
-	cp := GetPlayer()
-	if cp.cmd != nil {
-		if cp.cmd.Process != nil {
-			cp.cmd.Process.Kill()
-		}
+// Stop stops the current playback.
+func (p *Player) Stop() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.killLocked()
+}
+
+func (p *Player) killLocked() {
+	if p.state != nil && p.state.cmd != nil && p.state.cmd.Process != nil {
+		_ = p.state.cmd.Process.Kill()
 	}
-	cp.currentSong = nil
-	cp.Playing = false
+	p.state = nil
 }
 
-func GetPlaying() *model.Song {
-	cp := GetPlayer()
-	return cp.currentSong
+// GetPlaying returns the currently playing song, or nil.
+func (p *Player) GetPlaying() *model.Song {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.state == nil {
+		return nil
+	}
+	return p.state.song
 }
 
-func Beep() {
-	if !viper.GetBool("beep") {
+// Playing reports whether audio is currently playing.
+func (p *Player) Playing() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.state != nil
+}
+
+// Beep plays the success sound if beep is enabled.
+func (p *Player) Beep() { p.playSound("sounds/success.wav") }
+
+// Error plays the error sound if beep is enabled.
+func (p *Player) Error() { p.playSound("sounds/error.wav") }
+
+func (p *Player) playSound(path string) {
+	if !p.cfg.Beep {
 		return
 	}
-	args := []string{
-		"-nodisp",
-		"-autoexit", // exit after song finishes, otherwise command won't stop
-	}
-	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
-	args = append(args, "sounds/success.wav")
-	cmd := exec.Command("ffplay", args...)
-	cmd.Run()
+	args := p.buildArgs(path)
+	cmd := exec.Command(p.cfg.binary(), args...)
+	_ = cmd.Run()
 }
 
-func Error() {
-	if !viper.GetBool("beep") {
-		return
+func (p *Player) buildArgs(filePath string) []string {
+	vol := p.cfg.Volume
+	if vol <= 0 {
+		vol = 100
 	}
-	args := []string{
-		"-nodisp",
-		"-autoexit", // exit after song finishes, otherwise command won't stop
-	}
-	args = append(args, "-volume", fmt.Sprintf("%d", viper.GetInt("player.volume")))
-	args = append(args, "sounds/error.wav")
-	cmd := exec.Command("ffplay", args...)
-	cmd.Run()
-}
-
-// runCmd, used to debug commands
-func runCmd(cmds string) ([]byte, error) {
-	command := strings.Split(cmds, " ")
-	if len(command) < 2 {
-		return nil, fmt.Errorf("command too short:%s", cmds)
-	}
-	cmd := exec.Command(command[0], command[1:]...)
-	cmd.Start()
-	time.Sleep(200 * time.Millisecond)
-	cmd.Process.Kill()
-
-	return cmd.CombinedOutput()
+	args := []string{"-nodisp", "-autoexit"}
+	args = append(args, "-volume", fmt.Sprintf("%d", vol))
+	args = append(args, filePath)
+	return args
 }

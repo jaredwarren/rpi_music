@@ -3,16 +3,13 @@ package server
 import (
 	"fmt"
 	"net/http"
-
-	"github.com/jaredwarren/rpi_music/log"
 )
 
 func (s *Server) httpError(w http.ResponseWriter, err error, code int) {
-	fmt.Fprintf(w, "%s", err)
-	if code > 399 || code < 500 {
-		s.logger.Warn("", log.Error(err))
-
+	_, _ = fmt.Fprintf(w, "%s", err)
+	if code >= 400 && code < 500 {
+		s.logger.Warn("", "err", err)
 	} else {
-		s.logger.Error("", log.Error(err))
+		s.logger.Error("", "err", err)
 	}
 }

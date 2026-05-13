@@ -2,13 +2,13 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
 
-	"github.com/gorilla/mux"
-	"github.com/jaredwarren/rpi_music/log"
+	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/model"
 )
 
@@ -19,138 +19,106 @@ func (s *Server) EditRFIDSongFormHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	rfidMap := map[string][]*model.Song{}
-	for _, r := range rfids {
-		rfidMap[r.RFID] = []*model.Song{}
-		for _, sid := range r.Songs {
+	for _, entry := range rfids {
+		rfidMap[entry.RFID] = []*model.Song{}
+		for _, sid := range entry.Songs {
 			song, err := s.db.GetSong(sid)
 			if err != nil {
 				s.httpError(w, fmt.Errorf("EditRFIDSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 				return
 			}
-			rfidMap[r.RFID] = append(rfidMap[r.RFID], song)
+			rfidMap[entry.RFID] = append(rfidMap[entry.RFID], song)
 		}
 	}
-
-	fullData := map[string]interface{}{
+	s.render(w, r, s.templates["editRfid"], map[string]any{
 		"Rfids":     rfidMap,
-		TemplateTag: s.GetToken(w, r),
-	}
-
-	files := []string{
-		"templates/edit_rfid.html",
-		"templates/layout.html",
-	}
-	editSongFormTpl := template.Must(template.ParseFiles(files...))
-	s.render(w, r, editSongFormTpl, fullData)
+		TemplateTag: template.HTML(""),
+	})
 }
 
 func (s *Server) UnassignRFIDSongHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	songID := vars["song_id"]
+	songID := r.PathValue("song_id")
 	if songID == "" {
 		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
 		return
 	}
-
-	rfid := vars["rfid"]
+	rfid := r.PathValue("rfid")
 	if rfid == "" {
 		s.httpError(w, fmt.Errorf("rfid required"), http.StatusBadRequest)
 		return
 	}
 
-	s.logger.Warn("TODO:", log.Any("rfid", rfid), log.Any("song_id", songID))
-
-	err := s.db.RemoveRFIDSong(rfid, songID)
-	if err != nil {
-		s.httpError(w, fmt.Errorf("RemoveRFIDSong|%w", err), http.StatusBadRequest)
+	if err := s.db.RemoveRFIDSong(rfid, songID); err != nil {
+		s.httpError(w, fmt.Errorf("UnassignRFIDSongHandler|RemoveRFIDSong|%w", err), http.StatusBadRequest)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	resp := map[string]interface{}{
-		"ok": true,
-	}
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
 
 func (s *Server) AssignRFIDToSongFormHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	key := vars["song_id"]
+	key := r.PathValue("song_id")
 	if key == "" {
 		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
 		return
 	}
-
 	song, err := s.db.GetSong(key)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
+			return
+		}
 		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
 		return
 	}
-	if song == nil {
-		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
-
-	fullData := map[string]interface{}{
+	s.render(w, r, s.templates["assignSong"], map[string]any{
 		"Song":      song,
-		TemplateTag: s.GetToken(w, r),
-	}
-
-	files := []string{
-		"templates/assign_song.html",
-		"templates/layout.html",
-	}
-	editSongFormTpl := template.Must(template.ParseFiles(files...))
-	s.render(w, r, editSongFormTpl, fullData)
+		TemplateTag: template.HTML(""),
+	})
 }
 
 func (s *Server) AssignRFIDToSongHandler(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(32 << 20)
-	if err != nil {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		s.httpError(w, fmt.Errorf("ParseForm|%w", err), http.StatusBadRequest)
 		return
 	}
 
-	vars := mux.Vars(r)
-	key := vars["song_id"]
+	key := r.PathValue("song_id")
 	if key == "" {
 		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
 		return
 	}
-
 	song, err := s.db.GetSong(key)
 	if err != nil {
-		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
-		return
-	}
-	if song == nil {
-		s.httpError(w, fmt.Errorf("AssignRFIDToSongFormHandler|GetSong|%w", err), http.StatusBadRequest)
+		if errors.Is(err, db.ErrNotFound) {
+			s.httpError(w, fmt.Errorf("song not found"), http.StatusNotFound)
+			return
+		}
+		s.httpError(w, fmt.Errorf("AssignRFIDToSongHandler|GetSong|%w", err), http.StatusBadRequest)
 		return
 	}
 
-	// 3. Insert RFID if set
-	rfid := r.PostForm.Get("rfid")
-	rfid = strings.ReplaceAll(rfid, ":", "")
+	rfid := strings.ReplaceAll(r.PostForm.Get("rfid"), ":", "")
 	if rfid == "" {
-		s.httpError(w, fmt.Errorf("rfid required"), http.StatusInternalServerError)
+		s.httpError(w, fmt.Errorf("rfid required"), http.StatusBadRequest)
 		return
 	}
 
-	// Make sure rfid doesn't exist yet.
 	rfidSong, err := s.db.GetRFIDSong(rfid)
-	if err != nil {
-		s.logger.Error("RFIDExists error", log.Error(err))
-		s.httpError(w, fmt.Errorf("RFIDExists error %w", err), http.StatusInternalServerError)
+	if err != nil && !errors.Is(err, db.ErrNotFound) {
+		s.logger.Error("AssignRFIDToSongHandler|GetRFIDSong", "err", err)
+		s.httpError(w, fmt.Errorf("RFIDExists error: %w", err), http.StatusInternalServerError)
 		return
-	} else if rfidSong != nil {
-		s.httpError(w, fmt.Errorf("rfid aready assigned! (%+v)", rfidSong), http.StatusInternalServerError)
+	}
+	if rfidSong != nil {
+		s.httpError(w, fmt.Errorf("rfid already assigned (%+v)", rfidSong), http.StatusConflict)
 		return
-	} // else continue
+	}
 
-	err = s.db.AddRFIDSong(rfid, song.ID)
-	if err != nil {
-		s.logger.Error("AddRFIDSong error", log.Error(err))
-		s.httpError(w, fmt.Errorf("AddRFIDSong error %w", err), http.StatusInternalServerError)
+	if err := s.db.AddRFIDSong(rfid, song.ID); err != nil {
+		s.logger.Error("AssignRFIDToSongHandler|AddRFIDSong", "err", err)
+		s.httpError(w, fmt.Errorf("AddRFIDSong: %w", err), http.StatusInternalServerError)
 		return
 	}
 

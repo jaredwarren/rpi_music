@@ -3,86 +3,95 @@ package localtunnel
 import (
 	"bufio"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os/exec"
 	"strings"
-	"sync"
-
-	"github.com/jaredwarren/rpi_music/log"
-	"github.com/spf13/viper"
 )
 
-type lt struct {
-	cmd    *exec.Cmd
-	mu     sync.Mutex
-	logger log.Logger
+// Config holds the settings needed to start a localtunnel process.
+type Config struct {
+	Subdomain string // localtunnel subdomain (--subdomain flag)
+	AppHost   string // local host:port string (e.g. ":8000")
 }
 
-var (
-	cmd *exec.Cmd
-)
+// Tunnel wraps a running localtunnel (lt) subprocess.
+type Tunnel struct {
+	cmd    *exec.Cmd
+	done   chan error
+	logger *slog.Logger
+}
 
-func Init(logger log.Logger) error {
-	logger.Info("[localtunnel] localtunnel")
-	// TODO: check if localtunnel is installed!!!
-	ltHost := viper.GetString("localtunnel.host") // LOCALTUNNEL_HOST
-	if ltHost == "" {
-		return fmt.Errorf("localtunnel host required")
+// New starts a localtunnel process and returns a Tunnel.
+// Returns an error if the lt binary is not found or the process fails to start.
+func New(cfg Config, logger *slog.Logger) (*Tunnel, error) {
+	if _, err := exec.LookPath("lt"); err != nil {
+		return nil, fmt.Errorf("localtunnel: lt binary not found in PATH: %w", err)
 	}
 
-	h := viper.GetString("host")
-	if h == "" {
-		return fmt.Errorf("local host required")
+	port, err := extractPort(cfg.AppHost)
+	if err != nil {
+		return nil, fmt.Errorf("localtunnel: %w", err)
+	}
+	if cfg.Subdomain == "" {
+		return nil, fmt.Errorf("localtunnel: subdomain required")
 	}
 
-	var port string
-	var err error
-	if strings.HasPrefix(h, ":") {
-		port = strings.TrimLeft(h, ":")
-	} else {
-		u, err := url.Parse(h)
-		if err != nil {
-			return err
-		}
-		port = u.Port()
-	}
+	args := []string{"--port", port, "--subdomain", cfg.Subdomain}
+	cmd := exec.Command("lt", args...)
 
-	if port == "" {
-		// assume 80 or 443 based on https in config???
-		return fmt.Errorf("local port required")
-	}
-
-	logger.Info("[localtunnel] starting localtunnel", log.Any("subdomain", ltHost), log.Any("local_host", h), log.Any("port", port))
-	args := []string{
-		"--port", port,
-		"--subdomain", ltHost,
-	}
-	cmd = exec.Command("lt", args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("[ERROR] StdoutPipe error: %w", err)
+		return nil, fmt.Errorf("localtunnel: stdout pipe: %w", err)
 	}
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("[ERROR] start error: %w", err)
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("localtunnel: start: %w", err)
 	}
+
+	t := &Tunnel{cmd: cmd, done: make(chan error, 1), logger: logger}
+
 	go func() {
 		in := bufio.NewScanner(stdout)
-
 		for in.Scan() {
 			logger.Info(in.Text())
 		}
 		if err := in.Err(); err != nil {
-			logger.Error(err.Error())
+			logger.Error("localtunnel stdout", "err", err)
 		}
 	}()
+
 	go func() {
-		cmd.Wait()
+		t.done <- cmd.Wait()
 	}()
 
+	return t, nil
+}
+
+// Close kills the localtunnel process and waits for it to exit.
+func (t *Tunnel) Close() error {
+	if t.cmd == nil || t.cmd.Process == nil {
+		return nil
+	}
+	_ = t.cmd.Process.Kill()
+	<-t.done
 	return nil
 }
 
-func Close() error {
-	return cmd.Process.Kill()
+// extractPort parses the port from a host string like ":8000" or "http://host:8000".
+func extractPort(h string) (string, error) {
+	if h == "" {
+		return "", fmt.Errorf("host required")
+	}
+	if strings.HasPrefix(h, ":") {
+		return strings.TrimPrefix(h, ":"), nil
+	}
+	u, err := url.Parse(h)
+	if err != nil {
+		return "", fmt.Errorf("parse host %q: %w", h, err)
+	}
+	port := u.Port()
+	if port == "" {
+		return "", fmt.Errorf("could not determine port from host %q", h)
+	}
+	return port, nil
 }

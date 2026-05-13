@@ -14,6 +14,10 @@
                 <span>Cards</span></a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" href="/logs"><span class="material-symbols-outlined align-middle">nfc</span>
+                <span>Logs</span></a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="/config"><span class="material-symbols-outlined align-middle">settings</span>
                 <span class="align-middle"></span></a>
         </li>
@@ -24,8 +28,22 @@
 {{define "main"}}
 <script>
     var myModal;
+    var songRows = [];
     window.addEventListener('DOMContentLoaded', () => {
         myModal = new bootstrap.Modal(document.getElementById("exampleModal"), {});
+        songRows = Array.from(document.querySelectorAll("#songs-table-body tr")).map((row, index) => ({
+            row: row,
+            title: row.dataset.title || "",
+            index: index,
+        }));
+
+        const songSearch = document.getElementById("songSearch");
+        if (songSearch) {
+            songSearch.addEventListener("input", () => {
+                filterSongs(songSearch.value);
+            });
+            filterSongs(songSearch.value);
+        }
 
         if (!("NDEFReader" in window)) {
             console.log("Web NFC is not available. Use Chrome on Android.");
@@ -54,7 +72,7 @@
                 el.classList.remove("active");
             }
         }
-        fetch("/" + rfid + "/json") // Call the fetch function passing the url of the API as a parameter
+        fetch("/rfid/" + rfid + "/json") // Call the fetch function passing the url of the API as a parameter
             .then(res => res.json())
             .then(function (res) {
                 console.log(res)
@@ -87,6 +105,8 @@
                     // document.getElementById("exampleModalEditLink").setAttribute("href", "/song/" + res.ID);
                     document.getElementById("exampleModalPrintLink").setAttribute("href", "/song/" + res.ID + "/print");
                     document.getElementById("exampleModalNFCLink").setAttribute("href", "/song/" + res.ID + "/rfid");
+                    document.getElementById("exampleModalRedownloadLink").setAttribute("href", "/song/" + res.ID + "/redownload");
+                    resetRedownloadButton();
                     document.getElementById("exampleModalPlayLink").setAttribute("onclick", "wsplay(event, '" + res.ID + "')");
                     document.getElementById("exampleModalDeleteLink").setAttribute("href", "/song/" + res.ID + "/delete");
                     myModal.show();
@@ -96,6 +116,117 @@
                     console.error(e);
                     // This is where you run code if the server returns any errors
                 });
+        }
+    }
+
+    function resetRedownloadButton() {
+        const redownloadLink = document.getElementById("exampleModalRedownloadLink");
+        const redownloadSpinner = document.getElementById("exampleModalRedownloadSpinner");
+        if (redownloadLink) {
+            redownloadLink.classList.remove("disabled");
+            redownloadLink.removeAttribute("aria-disabled");
+        }
+        if (redownloadSpinner) {
+            redownloadSpinner.hidden = true;
+        }
+    }
+
+    function redownloadSongAssets(event) {
+        event.preventDefault();
+        const redownloadLink = event.currentTarget;
+        const redownloadSpinner = document.getElementById("exampleModalRedownloadSpinner");
+        if (redownloadLink) {
+            redownloadLink.classList.add("disabled");
+            redownloadLink.setAttribute("aria-disabled", "true");
+        }
+        if (redownloadSpinner) {
+            redownloadSpinner.hidden = false;
+        }
+        window.location.href = redownloadLink.getAttribute("href");
+        return false;
+    }
+
+    function normalizeForSearch(text) {
+        return text.toLowerCase().replace(/\s+/g, "");
+    }
+
+    function scoreSong(title, query) {
+        const normalizedTitle = normalizeForSearch(title);
+        const normalizedQuery = normalizeForSearch(query.trim());
+        if (!normalizedQuery) {
+            return 0;
+        }
+
+        if (normalizedTitle === normalizedQuery) {
+            return 10000;
+        }
+        if (normalizedTitle.startsWith(normalizedQuery)) {
+            return 8000 - (normalizedTitle.length - normalizedQuery.length);
+        }
+
+        const substringIndex = normalizedTitle.indexOf(normalizedQuery);
+        if (substringIndex !== -1) {
+            return 6000 - (substringIndex * 5) - (normalizedTitle.length - normalizedQuery.length);
+        }
+
+        // Prevent very broad 1-2 character fuzzy matches from returning too many results.
+        if (normalizedQuery.length < 3) {
+            return -1;
+        }
+
+        let queryIndex = 0;
+        let totalGaps = 0;
+        let lastMatch = -1;
+        for (let i = 0; i < normalizedTitle.length && queryIndex < normalizedQuery.length; i++) {
+            if (normalizedTitle[i] === normalizedQuery[queryIndex]) {
+                if (lastMatch >= 0) {
+                    totalGaps += i - lastMatch - 1;
+                }
+                lastMatch = i;
+                queryIndex++;
+            }
+        }
+
+        if (queryIndex !== normalizedQuery.length) {
+            return -1;
+        }
+
+        // Reject very loose subsequence matches.
+        if (totalGaps > normalizedQuery.length * 2) {
+            return -1;
+        }
+
+        return 3000 - (totalGaps * 20) - (normalizedTitle.length - normalizedQuery.length);
+    }
+
+    function filterSongs(query) {
+        const tbody = document.getElementById("songs-table-body");
+        if (!tbody) {
+            return;
+        }
+
+        const matches = [];
+        for (let i = 0; i < songRows.length; i++) {
+            const song = songRows[i];
+            const score = scoreSong(song.title, query);
+            if (score >= 0) {
+                matches.push({ song, score });
+            }
+        }
+
+        if (query.trim()) {
+            matches.sort((a, b) => b.score - a.score || a.song.index - b.song.index);
+        } else {
+            matches.sort((a, b) => a.song.index - b.song.index);
+        }
+
+        for (let i = 0; i < songRows.length; i++) {
+            songRows[i].row.style.display = "none";
+        }
+        for (let i = 0; i < matches.length; i++) {
+            const row = matches[i].song.row;
+            row.style.display = "";
+            tbody.appendChild(row);
         }
     }
 </script>
@@ -115,6 +246,11 @@
     </span> New</a>
 
 <div class="container">
+    <div class="row mt-3 mb-3">
+        <div class="col-12">
+            <input id="songSearch" type="search" class="form-control" placeholder="Search songs...">
+        </div>
+    </div>
     <table class="table table-striped table-hover" style="margin-bottom: 170px;">
         <thead>
             <tr>
@@ -124,9 +260,9 @@
                 <td>rfid</td>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="songs-table-body">
             {{range $index, $s := .Songs}}
-            <tr id="{{$s.ID}}" onclick="showSongInfo(this)" data-whatever="{{$s.ID}}">
+            <tr id="{{$s.ID}}" onclick="showSongInfo(this)" data-whatever="{{$s.ID}}" data-title="{{$s.Title}}">
                 <td class="align-middle"><img src="{{$s.Thumbnail}}" style="height: 50px;"></td>
                 <td>{{$s.Title}}</td>
                 <td class="align-middle"><button onClick="wsplay(event, '{{$s.ID}}')" class="btn btn-outline-primary"
@@ -191,6 +327,15 @@
                                     class="material-symbols-outlined align-middle">
                                     print
                                 </span> Print</a>
+                        </div>
+                        <div class="input-group mb-3">
+                            <a id="exampleModalRedownloadLink" class="btn btn-outline-primary" type="button"
+                                onclick="return redownloadSongAssets(event)"><span
+                                    class="material-symbols-outlined align-middle">
+                                    download
+                                </span> Re-download assets</a>
+                            <span id="exampleModalRedownloadSpinner" class="spinner-border spinner-border-sm ms-2 mt-2"
+                                role="status" hidden></span>
                         </div>
                         <!-- <div class="input-group mb-3">
                             <a id="exampleModalEditLink" class="btn btn-primary" type="button"><span
