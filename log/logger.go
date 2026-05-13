@@ -1,7 +1,6 @@
 package log
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -20,7 +19,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Level:  "info",
-		Format: "console",
+		Format: "json",
 	}
 }
 
@@ -32,12 +31,7 @@ var globalLogger = NewNoOpLogger()
 func Init(cfg Config) {
 	level := parseLevel(cfg.Level)
 
-	var writer io.Writer
-	if cfg.Format == "json" {
-		writer = os.Stdout
-	} else {
-		writer = os.Stdout
-	}
+	writer := io.Writer(os.Stdout)
 
 	if cfg.File != "" {
 		if dir := filepath.Dir(cfg.File); dir != "." {
@@ -52,12 +46,8 @@ func Init(cfg Config) {
 		}
 	}
 
-	var handler slog.Handler
-	if strings.EqualFold(cfg.Format, "json") {
-		handler = slog.NewJSONHandler(writer, &slog.HandlerOptions{Level: level})
-	} else {
-		handler = newColorHandler(writer, &slog.HandlerOptions{Level: level})
-	}
+	// Logs are always emitted as JSON for stable machine parsing and piping.
+	handler := slog.NewJSONHandler(writer, &slog.HandlerOptions{Level: level})
 	globalLogger = slog.New(handler)
 }
 
@@ -100,51 +90,3 @@ func parseLevel(level string) slog.Level {
 	}
 }
 
-type colorHandler struct {
-	delegate slog.Handler
-}
-
-func newColorHandler(out io.Writer, opts *slog.HandlerOptions) slog.Handler {
-	localOpts := &slog.HandlerOptions{Level: slog.LevelInfo}
-	if opts != nil {
-		localOpts.Level = opts.Level
-	}
-	localOpts.ReplaceAttr = func(_ []string, a slog.Attr) slog.Attr {
-		if a.Key != slog.LevelKey {
-			return a
-		}
-		level, ok := a.Value.Any().(slog.Level)
-		if !ok {
-			return a
-		}
-		label := level.String()
-		switch {
-		case level <= slog.LevelDebug:
-			label = "\x1b[36m" + label + "\x1b[0m"
-		case level >= slog.LevelError:
-			label = "\x1b[31m" + label + "\x1b[0m"
-		case level >= slog.LevelWarn:
-			label = "\x1b[33m" + label + "\x1b[0m"
-		default:
-			label = "\x1b[32m" + label + "\x1b[0m"
-		}
-		return slog.String(a.Key, label)
-	}
-	return &colorHandler{delegate: slog.NewTextHandler(out, localOpts)}
-}
-
-func (h *colorHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	return h.delegate.Enabled(ctx, level)
-}
-
-func (h *colorHandler) Handle(ctx context.Context, r slog.Record) error {
-	return h.delegate.Handle(ctx, r)
-}
-
-func (h *colorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &colorHandler{delegate: h.delegate.WithAttrs(attrs)}
-}
-
-func (h *colorHandler) WithGroup(name string) slog.Handler {
-	return &colorHandler{delegate: h.delegate.WithGroup(name)}
-}

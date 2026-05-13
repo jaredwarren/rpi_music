@@ -1,27 +1,16 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"runtime"
-	"sort"
-	"strings"
 
-	"github.com/google/uuid"
 	"github.com/jaredwarren/rpi_music/db"
 	"github.com/jaredwarren/rpi_music/downloader"
 	"github.com/jaredwarren/rpi_music/model"
 )
-
-var videoURLRegex = regexp.MustCompile(`.+?(https?:)`)
 
 func writeJSONError(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
@@ -99,22 +88,11 @@ func (s *Server) EditSongFormHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("current song", "song", s.player.GetPlaying())
 
-	songs, err := s.db.ListSongs()
+	songs, err := s.listSongsWithRFID()
 	if err != nil {
-		s.httpError(w, fmt.Errorf("ListSongHandler|ListSongs|%w", err), http.StatusBadRequest)
+		s.httpError(w, fmt.Errorf("ListSongHandler|%w", err), http.StatusBadRequest)
 		return
 	}
-
-	rfidList, err := s.db.ListRFIDSongs()
-	if err != nil {
-		s.httpError(w, fmt.Errorf("ListSongHandler|ListRFIDSongs|%w", err), http.StatusBadRequest)
-		return
-	}
-
-	enrichSongsWithRFID(songs, rfidList)
-	sort.Slice(songs, func(i, j int) bool {
-		return songs[i].CreatedAt.After(songs[j].CreatedAt)
-	})
 
 	s.render(w, r, s.templates["index"], map[string]any{
 		"Songs":       songs,
@@ -122,21 +100,6 @@ func (s *Server) ListSongHandler(w http.ResponseWriter, r *http.Request) {
 		"Player":      s.player,
 		TemplateTag:   template.HTML(""),
 	})
-}
-
-// enrichSongsWithRFID sets each song's RFID field in a single O(n) pass.
-func enrichSongsWithRFID(songs []*model.Song, rfidList []*model.RFIDSong) {
-	songIDToRFID := make(map[string]string, len(rfidList))
-	for _, entry := range rfidList {
-		for _, id := range entry.Songs {
-			songIDToRFID[id] = entry.RFID
-		}
-	}
-	for _, song := range songs {
-		if rfid, ok := songIDToRFID[song.ID]; ok {
-			song.RFID = rfid
-		}
-	}
 }
 
 func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
@@ -148,152 +111,75 @@ func (s *Server) NewSongFormHandler(w http.ResponseWriter, r *http.Request) {
 
 // DownloadSong starts a background download and immediately redirects to /songs.
 func (s *Server) DownloadSong(w http.ResponseWriter, r *http.Request) {
+	if err := s.DownloadSongE(w, r); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) {
+			s.httpError(w, httpErr.Err, httpErr.Code)
+			return
+		}
+		s.httpError(w, err, http.StatusInternalServerError)
+	}
+}
+
+// DownloadSongE starts a background download and immediately redirects to /songs.
+func (s *Server) DownloadSongE(w http.ResponseWriter, r *http.Request) error {
 	if err := r.ParseForm(); err != nil {
 		s.logger.Error("DownloadSong|ParseForm", "err", err)
-		s.httpError(w, fmt.Errorf("DownloadSong|ParseForm|%w", err), http.StatusBadRequest)
-		return
+		return asHTTPError(http.StatusBadRequest, fmt.Errorf("DownloadSong|ParseForm|%w", err))
 	}
 
 	rawURL := r.PostForm.Get("url")
 	if rawURL == "" {
-		s.httpError(w, downloader.ErrMissingURL, http.StatusBadRequest)
-		return
+		return asHTTPError(http.StatusBadRequest, downloader.ErrMissingURL)
 	}
 	force := r.PostForm.Get("force") != ""
 	rfid := normalizeRFID(r.PostForm.Get("rfid"))
 
 	go func() {
-		song, err := s.downloadSong(s.ctx, rawURL, force)
+		song, err := s.createDownloadedSong(s.ctx, rawURL, force, rfid)
 		if err != nil {
-			s.logger.Error("downloadSong", "err", err)
+			s.logger.Error("createDownloadedSong", "err", err)
 			notifyDesktop("Download failed", err.Error())
 			s.notifyBroadcast("Download failed", err.Error())
 			return
 		}
-		if err := s.db.CreateSong(song); err != nil {
-			s.logger.Error("CreateSong", "err", err)
-			notifyDesktop("Download failed", err.Error())
-			s.notifyBroadcast("Download failed", err.Error())
-			return
-		}
-		s.tryAssignRFID(rfid, song.ID)
 		notifyDesktop("Download complete", song.Title)
 		s.notifyBroadcast("Download complete", song.Title)
 	}()
 
 	http.Redirect(w, r, "/songs", http.StatusFound)
+	return nil
 }
 
 func (s *Server) NewSongHandler(w http.ResponseWriter, r *http.Request) {
+	if err := s.NewSongHandlerE(w, r); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) {
+			s.httpError(w, httpErr.Err, httpErr.Code)
+			return
+		}
+		s.httpError(w, err, http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) NewSongHandlerE(w http.ResponseWriter, r *http.Request) error {
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		s.logger.Error("NewSongHandler|ParseForm", "err", err)
-		s.httpError(w, fmt.Errorf("NewSongHandler|ParseForm|%w", err), http.StatusBadRequest)
-		return
+		return asHTTPError(http.StatusBadRequest, fmt.Errorf("NewSongHandler|ParseForm|%w", err))
 	}
 
 	url := r.PostForm.Get("url")
 	force := r.PostForm.Get("force") != ""
 	rfid := normalizeRFID(r.PostForm.Get("rfid"))
 
-	song, err := s.downloadSong(s.ctx, url, force)
-	if err != nil {
-		s.logger.Error("NewSongHandler|downloadSong", "err", err)
-	} else if err := s.db.UpdateSong(song); err != nil {
-		s.logger.Error("NewSongHandler|UpdateSong", "err", err)
-	} else {
-		s.tryAssignRFID(rfid, song.ID)
+	if _, err := s.updateDownloadedSong(s.ctx, url, force, rfid); err != nil {
+		s.logger.Error("NewSongHandler|updateDownloadedSong", "err", err)
 	}
 
 	http.Redirect(w, r, "/songs", http.StatusFound)
-}
-
-func normalizeRFID(rfid string) string {
-	return strings.ReplaceAll(rfid, ":", "")
-}
-
-func notifyDesktop(title, body string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "linux":
-		cmd = exec.Command("notify-send", title, body)
-	case "darwin":
-		bodyEsc := strings.ReplaceAll(strings.ReplaceAll(body, `\`, `\\`), `"`, `\"`)
-		titleEsc := strings.ReplaceAll(strings.ReplaceAll(title, `\`, `\\`), `"`, `\"`)
-		script := fmt.Sprintf("display notification \"%s\" with title \"%s\"", bodyEsc, titleEsc)
-		cmd = exec.Command("osascript", "-e", script)
-	default:
-		return
-	}
-	_ = cmd.Run()
-}
-
-func (s *Server) tryAssignRFID(rfid, songID string) {
-	if rfid == "" {
-		return
-	}
-	existing, err := s.db.GetRFIDSong(rfid)
-	if err != nil && !errors.Is(err, db.ErrNotFound) {
-		s.logger.Error("tryAssignRFID|GetRFIDSong", "err", err)
-		return
-	}
-	if existing != nil {
-		s.logger.Error("tryAssignRFID|rfid already assigned", "rfidSong", existing)
-		return
-	}
-	if err := s.db.AddRFIDSong(rfid, songID); err != nil {
-		s.logger.Error("tryAssignRFID|AddRFIDSong", "err", err)
-	}
-}
-
-func (s *Server) downloadSong(ctx context.Context, rawURL string, force bool) (*model.Song, error) {
-	if rawURL == "" {
-		return nil, downloader.ErrMissingURL
-	}
-	url := normalizeVideoURL(rawURL)
-
-	if !force {
-		if err := s.checkAlreadyDownloaded(ctx, url); err != nil {
-			return nil, err
-		}
-	}
-
-	filePath, video, err := s.downloader.DownloadVideo(ctx, url, s.logger)
-	if err != nil {
-		return nil, fmt.Errorf("DownloadVideo|%w", err)
-	}
-
-	thumb, _ := s.downloader.DownloadThumb(video)
-
-	return &model.Song{
-		ID:        uuid.New().String(),
-		URL:       url,
-		Thumbnail: thumb,
-		FilePath:  filePath,
-		Title:     video.Title,
-	}, nil
-}
-
-func normalizeVideoURL(url string) string {
-	return videoURLRegex.ReplaceAllString(url, "${1}")
-}
-
-func (s *Server) checkAlreadyDownloaded(ctx context.Context, url string) error {
-	filename, err := s.downloader.GetVideoFilename(ctx, url, s.logger)
-	if err != nil {
-		return err
-	}
-	if filename == "" {
-		return nil
-	}
-	_, err = os.Stat(filename)
-	if err == nil {
-		return downloader.ErrAlreadyExists
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
 	return nil
 }
+
 
 // getSongFromPath reads param from path values, fetches the song, and writes an error on failure.
 func (s *Server) getSongFromPath(w http.ResponseWriter, r *http.Request, param string) (*model.Song, bool) {
@@ -315,16 +201,26 @@ func (s *Server) getSongFromPath(w http.ResponseWriter, r *http.Request, param s
 }
 
 func (s *Server) DeleteSongHandler(w http.ResponseWriter, r *http.Request) {
+	if err := s.DeleteSongHandlerE(w, r); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) {
+			s.httpError(w, httpErr.Err, httpErr.Code)
+			return
+		}
+		s.httpError(w, err, http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) DeleteSongHandlerE(w http.ResponseWriter, r *http.Request) error {
 	songID := r.PathValue("song_id")
 	if songID == "" {
-		s.httpError(w, fmt.Errorf("song_id required"), http.StatusBadRequest)
-		return
+		return asHTTPError(http.StatusBadRequest, fmt.Errorf("song_id required"))
 	}
 	if err := s.db.DeleteSong(songID); err != nil {
-		s.httpError(w, fmt.Errorf("DeleteSongHandler|DeleteSong|%w", err), http.StatusInternalServerError)
-		return
+		return asHTTPError(http.StatusInternalServerError, fmt.Errorf("DeleteSongHandler|DeleteSong|%w", err))
 	}
 	http.Redirect(w, r, "/songs", http.StatusFound)
+	return nil
 }
 
 // RedownloadSongAssetsHandler repairs missing song assets in place.
@@ -334,98 +230,11 @@ func (s *Server) RedownloadSongAssetsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	videoMissing := pathMissing(song.FilePath)
-	thumbMissing := pathMissing(song.Thumbnail)
-	if !videoMissing && !thumbMissing {
-		http.Redirect(w, r, "/songs", http.StatusFound)
-		return
-	}
-
-	if videoMissing {
-		filePath, video, err := s.downloader.DownloadVideo(s.ctx, song.URL, s.logger)
-		if err != nil {
-			s.httpError(w, fmt.Errorf("RedownloadSongAssetsHandler|DownloadVideo|%w", err), http.StatusInternalServerError)
-			return
-		}
-		song.FilePath = normalizeAssetPath(filePath, s.songAssetRoot())
-		if video != nil && video.Title != "" {
-			song.Title = video.Title
-		}
-		if thumbMissing {
-			thumb, err := s.downloader.DownloadThumb(video)
-			if err != nil {
-				s.httpError(w, fmt.Errorf("RedownloadSongAssetsHandler|DownloadThumb|%w", err), http.StatusInternalServerError)
-				return
-			}
-			song.Thumbnail = normalizeAssetPath(thumb, s.thumbAssetRoot())
-			thumbMissing = false
-		}
-	}
-
-	if thumbMissing {
-		video, err := s.downloader.GetVideo(song.URL)
-		if err != nil {
-			s.httpError(w, fmt.Errorf("RedownloadSongAssetsHandler|GetVideo|%w", err), http.StatusInternalServerError)
-			return
-		}
-		thumb, err := s.downloader.DownloadThumb(video)
-		if err != nil {
-			s.httpError(w, fmt.Errorf("RedownloadSongAssetsHandler|DownloadThumb|%w", err), http.StatusInternalServerError)
-			return
-		}
-		song.Thumbnail = normalizeAssetPath(thumb, s.thumbAssetRoot())
-	}
-
-	if err := s.db.UpdateSong(song); err != nil {
-		s.httpError(w, fmt.Errorf("RedownloadSongAssetsHandler|UpdateSong|%w", err), http.StatusInternalServerError)
+	if err := s.redownloadMissingAssets(song); err != nil {
+		s.httpError(w, fmt.Errorf("RedownloadSongAssetsHandler|%w", err), http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/songs", http.StatusFound)
-}
-
-func pathMissing(path string) bool {
-	if path == "" {
-		return true
-	}
-	_, err := os.Stat(path)
-	return errors.Is(err, os.ErrNotExist)
-}
-
-func (s *Server) songAssetRoot() string {
-	if s.cfg != nil && s.cfg.Player.SongRoot != "" {
-		return s.cfg.Player.SongRoot
-	}
-	return "song_files"
-}
-
-func (s *Server) thumbAssetRoot() string {
-	if s.cfg != nil && s.cfg.Player.ThumbRoot != "" {
-		return s.cfg.Player.ThumbRoot
-	}
-	return "thumb_files"
-}
-
-func normalizeAssetPath(path, root string) string {
-	if path == "" {
-		return ""
-	}
-	normalizedRoot := filepath.Clean(root)
-	cleanPath := filepath.Clean(path)
-	normalizedRootSlash := filepath.ToSlash(normalizedRoot)
-
-	if filepath.IsAbs(cleanPath) {
-		if absRoot, err := filepath.Abs(normalizedRoot); err == nil {
-			if rel, relErr := filepath.Rel(absRoot, cleanPath); relErr == nil && rel != "." && !strings.HasPrefix(rel, "..") {
-				return filepath.ToSlash(filepath.Join(normalizedRoot, rel))
-			}
-		}
-	}
-
-	pathSlash := filepath.ToSlash(cleanPath)
-	if pathSlash == normalizedRootSlash || strings.HasPrefix(pathSlash, normalizedRootSlash+"/") {
-		return pathSlash
-	}
-	return filepath.ToSlash(filepath.Join(normalizedRoot, filepath.Base(cleanPath)))
 }
 
 func (s *Server) PlayVideoHandler(w http.ResponseWriter, r *http.Request) {

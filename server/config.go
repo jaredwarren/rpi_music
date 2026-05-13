@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -17,9 +18,19 @@ func (s *Server) ConfigFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
+	if err := s.ConfigHandlerE(w, r); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) {
+			s.httpError(w, httpErr.Err, httpErr.Code)
+			return
+		}
+		s.httpError(w, err, http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) ConfigHandlerE(w http.ResponseWriter, r *http.Request) error {
 	if err := r.ParseForm(); err != nil {
-		s.httpError(w, fmt.Errorf("ConfigHandler|ParseForm|%w", err), http.StatusBadRequest)
-		return
+		return asHTTPError(http.StatusBadRequest, fmt.Errorf("ConfigHandler|ParseForm|%w", err))
 	}
 	s.logger.Info("ConfigHandler", "form", r.PostForm)
 
@@ -35,9 +46,9 @@ func (s *Server) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.cfg.Save(); err != nil {
-		s.httpError(w, fmt.Errorf("ConfigHandler|Save|%w", err), http.StatusInternalServerError)
-		return
+		return asHTTPError(http.StatusInternalServerError, fmt.Errorf("ConfigHandler|Save|%w", err))
 	}
 
 	http.Redirect(w, r, "/songs", http.StatusFound)
+	return nil
 }

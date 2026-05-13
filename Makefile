@@ -11,7 +11,7 @@ build:
 	go build -o $(BINARY) .
 
 run:
-	go run main.go
+	go run main.go 2>&1 | hl
 
 test:
 	go test ./...

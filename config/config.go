@@ -116,7 +116,7 @@ func defaults() *Config {
 	return &Config{
 		Log: LogConfig{
 			Level:  "info",
-			Format: "console",
+			Format: "json",
 		},
 		Host:          ":8000",
 		HTTPS:         true,
