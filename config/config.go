@@ -41,17 +41,17 @@ func (d Duration) MarshalYAML() (any, error) {
 type Config struct {
 	path string // unexported: set by Load, used by Save
 
-	Host          string          `yaml:"host"`
-	HTTPS         bool            `yaml:"https"`
-	RFIDEnabled   bool            `yaml:"rfid-enabled"`
-	Beep          bool            `yaml:"beep"`
-	Restart       bool            `yaml:"restart"`
-	AllowOverride bool            `yaml:"allow_override"`
-	Downloader    string          `yaml:"downloader"`
-	Player        PlayerConfig    `yaml:"player"`
-	RFID          RFIDConfig      `yaml:"rfid"`
-	Startup       StartupConfig   `yaml:"startup"`
-	Log           LogConfig       `yaml:"log"`
+	Host          string            `yaml:"host"`
+	HTTPS         bool              `yaml:"https"`
+	RFIDEnabled   bool              `yaml:"rfid-enabled"`
+	Beep          bool              `yaml:"beep"`
+	Restart       bool              `yaml:"restart"`
+	AllowOverride bool              `yaml:"allow_override"`
+	Downloader    string            `yaml:"downloader"`
+	Player        PlayerConfig      `yaml:"player"`
+	RFID          RFIDConfig        `yaml:"rfid"`
+	Startup       StartupConfig     `yaml:"startup"`
+	Log           LogConfig         `yaml:"log"`
 	Localtunnel   LocaltunnelConfig `yaml:"localtunnel"`
 }
 
@@ -176,26 +176,26 @@ func (c *Config) Save() error {
 // ToMap returns a flat string-keyed map compatible with the config template helpers.
 func (c *Config) ToMap() map[string]any {
 	return map[string]any{
-		"https":                  c.HTTPS,
-		"host":                   c.Host,
-		"rfid-enabled":           c.RFIDEnabled,
-		"beep":                   c.Beep,
-		"restart":                c.Restart,
-		"allow_override":         c.AllowOverride,
-		"downloader":             c.Downloader,
-		"player.song_root":       c.Player.SongRoot,
-		"player.thumb_root":      c.Player.ThumbRoot,
-		"player.volume":          c.Player.Volume,
-		"player.loop":            c.Player.Loop,
-		"startup.play":           c.Startup.Play,
-		"startup.file":           c.Startup.File,
-		"log.level":              c.Log.Level,
-		"log.format":             c.Log.Format,
-		"log.file":               c.Log.File,
-		"localtunnel.enabled":    c.Localtunnel.Enabled,
-		"localtunnel.host":       c.Localtunnel.Host,
-		"rfid.cooldown":          c.RFID.Cooldown.String(),
-		"rfid.poll_interval":     c.RFID.PollInterval.String(),
-		"rfid.read_uid_timeout":  c.RFID.ReadUIDTimeout.String(),
+		"https":                 c.HTTPS,
+		"host":                  c.Host,
+		"rfid-enabled":          c.RFIDEnabled,
+		"beep":                  c.Beep,
+		"restart":               c.Restart,
+		"allow_override":        c.AllowOverride,
+		"downloader":            c.Downloader,
+		"player.song_root":      c.Player.SongRoot,
+		"player.thumb_root":     c.Player.ThumbRoot,
+		"player.volume":         c.Player.Volume,
+		"player.loop":           c.Player.Loop,
+		"startup.play":          c.Startup.Play,
+		"startup.file":          c.Startup.File,
+		"log.level":             c.Log.Level,
+		"log.format":            c.Log.Format,
+		"log.file":              c.Log.File,
+		"localtunnel.enabled":   c.Localtunnel.Enabled,
+		"localtunnel.host":      c.Localtunnel.Host,
+		"rfid.cooldown":         c.RFID.Cooldown.String(),
+		"rfid.poll_interval":    c.RFID.PollInterval.String(),
+		"rfid.read_uid_timeout": c.RFID.ReadUIDTimeout.String(),
 	}
 }

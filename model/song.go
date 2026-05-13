@@ -23,4 +23,3 @@ func NewSong() *Song {
 		ID: NewSongID,
 	}
 }
-

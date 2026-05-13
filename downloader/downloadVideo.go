@@ -9,8 +9,10 @@ import (
 )
 
 // mergerOutputRegex captures the output path from yt-dlp's "[Merger] Merging formats into \"path\"" line (stderr).
-var mergerOutputRegex = regexp.MustCompile(`\[Merger\] Merging formats into "(.+?)"`)
-var destinationOutputRegex = regexp.MustCompile(`(?:\[download\]|\[ExtractAudio\])\s+Destination:\s+(.+?)(\n|$)`)
+var (
+	mergerOutputRegex      = regexp.MustCompile(`\[Merger\] Merging formats into "(.+?)"`)
+	destinationOutputRegex = regexp.MustCompile(`(?:\[download\]|\[ExtractAudio\])\s+Destination:\s+(.+?)(\n|$)`)
+)
 
 func downloadVideo(ctx context.Context, videoID, songRoot string, cfg *YoutubeDLConfig) (string, error) {
 	absRoot := absPath(songRoot)

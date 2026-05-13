@@ -8,8 +8,10 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-const RFIDBucket = "RFIDBucket"
-const SongRFIDIndexBucket = "SongRFIDIndexBucket"
+const (
+	RFIDBucket          = "RFIDBucket"
+	SongRFIDIndexBucket = "SongRFIDIndexBucket"
+)
 
 // RFIDStore is the read/write interface for RFID→song mappings.
 type RFIDStore interface {

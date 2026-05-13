@@ -43,11 +43,13 @@ func (m *MockDB) GetSong(id string) (*model.Song, error) {
 	defer m.mu.RUnlock()
 	return m.GetSongResult, m.GetSongErr
 }
+
 func (m *MockDB) ListSongs() ([]*model.Song, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.ListSongsResult, m.ListSongsErr
 }
+
 func (m *MockDB) CreateSong(song *model.Song) error {
 	m.mu.Lock()
 	m.CreateSongCalls = append(m.CreateSongCalls, song)
@@ -58,6 +60,7 @@ func (m *MockDB) CreateSong(song *model.Song) error {
 	}
 	return nil
 }
+
 func (m *MockDB) UpdateSong(song *model.Song) error {
 	m.mu.Lock()
 	m.UpdateSongCalls = append(m.UpdateSongCalls, song)
@@ -68,6 +71,7 @@ func (m *MockDB) UpdateSong(song *model.Song) error {
 	}
 	return nil
 }
+
 func (m *MockDB) DeleteSong(id string) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

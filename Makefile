@@ -2,6 +2,14 @@ PI_HOST    := pi@pimusic.local
 PI_DIR     := /home/pi/go/src/github.com/jaredwarren/rpi_music
 SERVICE    := pplayer
 BINARY     := pplayer
+GOBIN      := $(shell go env GOBIN)
+
+ifeq ($(GOBIN),)
+GOBIN := $(shell go env GOPATH)/bin
+endif
+
+GOFUMPT    := $(GOBIN)/gofumpt
+GOVULNCHECK := $(GOBIN)/govulncheck
 
 # ── Local ────────────────────────────────────────────────────────────────────
 
@@ -23,14 +31,14 @@ test:
 test-race:
 	go test -race -count=1 ./...
 
-fmt:
-	gofumpt -w .
+fmt: $(GOFUMPT)
+	$(GOFUMPT) -w .
 
 lint:
 	golangci-lint run ./...
 
-vulncheck:
-	govulncheck ./...
+vulncheck: $(GOVULNCHECK)
+	$(GOVULNCHECK) ./...
 
 tidy-check:
 	go mod tidy
@@ -39,6 +47,12 @@ tidy-check:
 check: fmt lint test-race
 
 check-ci: lint test-race tidy-check
+
+$(GOFUMPT):
+	go install mvdan.cc/gofumpt@latest
+
+$(GOVULNCHECK):
+	go install golang.org/x/vuln/cmd/govulncheck@latest
 
 # ── Raspberry Pi ─────────────────────────────────────────────────────────────
 

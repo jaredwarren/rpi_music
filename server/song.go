@@ -180,7 +180,6 @@ func (s *Server) NewSongHandlerE(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-
 // getSongFromPath reads param from path values, fetches the song, and writes an error on failure.
 func (s *Server) getSongFromPath(w http.ResponseWriter, r *http.Request, param string) (*model.Song, bool) {
 	key := r.PathValue(param)

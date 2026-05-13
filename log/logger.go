@@ -23,8 +23,10 @@ func DefaultConfig() Config {
 	}
 }
 
-var logFile *os.File
-var globalLogger = NewNoOpLogger()
+var (
+	logFile      *os.File
+	globalLogger = NewNoOpLogger()
+)
 
 // Init initialises the global slog logger. Call once at startup after
 // loading config. Subsequent calls re-initialise (useful in tests).
@@ -89,4 +91,3 @@ func parseLevel(level string) slog.Level {
 		return slog.LevelInfo
 	}
 }
-
